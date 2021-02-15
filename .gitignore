@@ -1,0 +1,8 @@
+.pytest_cache
+.vscode/
+__pycache__
+lightning_logs
+tb_logs/
+saved_models/
+notebooks/data/
+notebooks/.ipynb_checkpoints/
