@@ -1,3 +1,4 @@
+import math
 import torch
 import pickle
 import argparse
@@ -144,7 +145,7 @@ def main(args):
 
     dm.setup()
     vocab_size = len(tokeniser)
-    train_steps = (len(dm.train_dataloader()) // args.acc_batches) * args.epochs
+    train_steps = math.ceil(len(dm.train_dataloader()) / args.acc_batches) * args.epochs
     print(f"Train steps: {train_steps}")
 
     sampler = DecodeSampler(tokeniser, args.max_seq_len)

@@ -31,11 +31,13 @@ def build_mol_opt_dataset(args):
 def read_extra_tokens(paths):
     extra_tokens = []
     for path in paths:
-        text = Path(path).read_text()
-        tokens = text.split("\n")
-        tokens = [token for token in tokens if token != ""]
-        print(f"Read {len(tokens)} tokens from {path}")
-        extra_tokens.extend(tokens)
+        p = Path(path)
+        if p.is_file():
+            text = p.read_text()
+            tokens = text.split("\n")
+            tokens = [token for token in tokens if token != ""]
+            print(f"Read {len(tokens)} tokens from {path}")
+            extra_tokens.extend(tokens)
 
     return extra_tokens
 
