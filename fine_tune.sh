@@ -1,5 +1,5 @@
 #!/bin/bash
-python -m molenc.fine_tune \
+python -m molbart.fine_tune \
  --dataset uspto_mit \
  --data_path ../data/uspto_mixed.pickle \
  --tokeniser_path ../tokenisers/mol_opt_tokeniser.pickle \

@@ -6,16 +6,16 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 
-from molenc.dataset import (
+from molbart.dataset import (
     Uspto50, 
     Chembl, 
     MoleculeDataset,
     ConcatMoleculeDataset,
     MoleculeDataModule
 )
-from molenc.models import BARTModel
-from molenc.tokenise import MolEncTokeniser
-from molenc.decode import DecodeSampler
+from molbart.models import BARTModel
+from molbart.tokenise import MolEncTokeniser
+from molbart.decode import DecodeSampler
 
 
 DEFAULT_BATCH_SIZE = 32

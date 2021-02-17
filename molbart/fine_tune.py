@@ -7,9 +7,9 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint, Callback
 
-from molenc.models import BARTModel, ReactionPredModel
-from molenc.dataset import Uspto50, UsptoMit, FineTuneReactionDataModule
-from molenc.decode import DecodeSampler
+from molbart.models import BARTModel, ReactionPredModel
+from molbart.dataset import Uspto50, UsptoMit, FineTuneReactionDataModule
+from molbart.decode import DecodeSampler
 
 
 DEFAULT_BATCH_SIZE = 32

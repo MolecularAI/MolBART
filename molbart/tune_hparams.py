@@ -9,9 +9,9 @@ from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint, Callback
 from functools import partial
 
-from molenc.models import BARTModel, ReactionPredModel
-from molenc.dataset import Uspto50, FineTuneReactionDataModule
-from molenc.decode import DecodeSampler
+from molbart.models import BARTModel, ReactionPredModel
+from molbart.dataset import Uspto50, FineTuneReactionDataModule
+from molbart.decode import DecodeSampler
 
 
 DEFAULT_TIMEOUT_HOURS = 28 * 24

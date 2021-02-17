@@ -5,9 +5,9 @@ from pathlib import Path
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import TensorBoardLogger
 
-from molenc.models import TransformerModel, ReactionPredModel
-from molenc.dataset import Uspto50, FineTuneReactionDataModule
-from molenc.decode import DecodeSampler
+from molbart.models import TransformerModel, ReactionPredModel
+from molbart.dataset import Uspto50, FineTuneReactionDataModule
+from molbart.decode import DecodeSampler
 
 
 DEFAULT_BATCH_SIZE = 32
