@@ -10,7 +10,7 @@ from typing import List, Optional
 from torch.utils.data import Dataset, DataLoader, Sampler, RandomSampler, SequentialSampler
 from pysmilesutils.augment import MolRandomizer
 
-from molenc.tokenise import MolEncTokeniser
+from molbart.tokenise import MolEncTokeniser
 
 
 # --------------------------------------------------------------------------------------------------------

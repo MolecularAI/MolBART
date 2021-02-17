@@ -3,13 +3,13 @@ import argparse
 from pathlib import Path
 from rdkit import Chem
 
-from molenc.dataset import (
+from molbart.dataset import (
     Chembl, 
     MoleculeDataset,
     ConcatMoleculeDataset,
     MolOptDataset,
 )
-from molenc.tokenise import MolEncTokeniser
+from molbart.tokenise import MolEncTokeniser
 
 
 MOL_OPT_TOKENS_PATH = "mol_opt_tokens.txt"

@@ -1,7 +1,7 @@
 import torch
 from unittest.mock import patch, MagicMock, call
 
-from molenc.decode import DecodeSampler
+from molbart.decode import DecodeSampler
 
 
 def test_transpose_list():
@@ -26,7 +26,7 @@ def test_sort_beams():
     assert exp_log_lhs == sorted_log_lhs
 
 
-@patch("molenc.tokenise.MolEncTokeniser")
+@patch("molbart.tokenise.MolEncTokeniser")
 def test_greedy_calls_decode(tokeniser):
     max_seq_len = 3
     batch_size = 4
@@ -45,7 +45,7 @@ def test_greedy_calls_decode(tokeniser):
     assert len(decode_fn.call_args_list) == expected_calls
 
 
-@patch("molenc.tokenise.MolEncTokeniser")
+@patch("molbart.tokenise.MolEncTokeniser")
 def test_greedy_chooses_max(tokeniser):
     max_seq_len = 3
     batch_size = 1
@@ -79,7 +79,7 @@ def test_greedy_chooses_max(tokeniser):
     tokeniser.convert_ids_to_tokens.assert_called_once_with(exp_tokens)
 
 
-@patch("molenc.tokenise.MolEncTokeniser")
+@patch("molbart.tokenise.MolEncTokeniser")
 def test_greedy_calls_decode(tokeniser):
     max_seq_len = 3
     batch_size = 4
@@ -101,7 +101,7 @@ def test_greedy_calls_decode(tokeniser):
     assert len(decode_fn.call_args_list) == expected_calls
 
 
-@patch("molenc.tokenise.MolEncTokeniser")
+@patch("molbart.tokenise.MolEncTokeniser")
 def test_beam_chooses_correct_tokens(tokeniser):
     max_seq_len = 4
     batch_size = 1

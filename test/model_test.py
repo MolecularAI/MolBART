@@ -2,9 +2,9 @@ import pytest
 import torch
 import random
 
-from molenc.models import BARTModel
-from molenc.tokenise import MolEncTokeniser
-from molenc.decode import DecodeSampler
+from molbart.models import BARTModel
+from molbart.tokenise import MolEncTokeniser
+from molbart.decode import DecodeSampler
 
 
 # Use dummy SMILES strings

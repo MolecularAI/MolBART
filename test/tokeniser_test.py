@@ -1,7 +1,7 @@
 import torch
 import random
 
-from molenc.tokenise import MolEncTokeniser
+from molbart.tokenise import MolEncTokeniser
 
 
 # Use dummy SMILES strings
