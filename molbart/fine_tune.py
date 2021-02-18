@@ -14,7 +14,7 @@ from molbart.decode import DecodeSampler
 
 DEFAULT_BATCH_SIZE = 32
 DEFAULT_ACC_BATCHES = 1
-DEFAULT_MAX_SEQ_LEN = 384
+DEFAULT_MAX_SEQ_LEN = 512
 DEFAULT_LR = 1e-5
 DEFAULT_WEIGHT_DECAY = 0.0
 DEFAULT_EPOCHS = 100
@@ -96,7 +96,10 @@ def load_model(args, sampler, vocab_size, total_steps, pad_token_idx):
             max_seq_len=args.max_seq_len
         )
     else:
-        pre_trained = BARTModel.load_from_checkpoint(args.model_path)
+        pre_trained = BARTModel.load_from_checkpoint(
+            args.model_path,
+            decode_sampler=sampler
+        )
 
     model = ReactionPredModel(
         pre_trained,

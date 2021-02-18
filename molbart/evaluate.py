@@ -6,7 +6,7 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import TensorBoardLogger
 
 from molbart.models import BARTModel, ReactionPredModel
-from molbart.dataset import Uspto50, FineTuneReactionDataModule
+from molbart.dataset import Uspto50, UsptoMit, FineTuneReactionDataModule
 from molbart.decode import DecodeSampler
 
 
@@ -18,7 +18,15 @@ use_gpu = USE_GPU and torch.cuda.is_available()
 
 
 def build_dataset(args):
-    dataset = Uspto50(args.data_path)
+    if args.dataset == "pande":
+        dataset = Uspto50(args.data_path)
+        print("Using Pande group dataset.")
+    elif args.dataset == "uspto_mit":
+        dataset = UsptoMit(args.data_path)
+        print("Using USPTO MIT dataset.")
+    else:
+        raise ValueError(f"Unknown dataset {args.dataset}.")
+
     return dataset
 
 
@@ -43,12 +51,16 @@ def load_tokeniser(args):
     return tokeniser
 
 
-def load_model(args, sampler):
-    pre_trained = BARTModel.load_from_checkpoint(args.pre_trained_path)
+def load_model(args, sampler, pad_token_idx):
+    pre_trained = BARTModel.load_from_checkpoint(
+        args.pre_trained_path, 
+        decode_sampler=sampler
+    )
     model = ReactionPredModel.load_from_checkpoint(
         args.model_path,
         model=pre_trained,
-        decode_sampler=sampler
+        decode_sampler=sampler,
+        pad_token_idx=pad_token_idx
     )
     return model
 
@@ -86,9 +98,10 @@ def main(args):
     print("Finished datamodule.")
 
     sampler = DecodeSampler(tokeniser, args.max_seq_len)
+    pad_token_idx = tokeniser.vocab[tokeniser.pad_token]
 
     print("Loading model...")
-    model = load_model(args, sampler)
+    model = load_model(args, sampler, pad_token_idx)
     print("Finished model.")
 
     print("Building trainer...")
@@ -113,6 +126,7 @@ if __name__ == "__main__":
     parser.add_argument("--tokeniser_path", type=str)
     parser.add_argument("--model_path", type=str)
     parser.add_argument("--pre_trained_path", type=str)
+    parser.add_argument("--dataset", type=str)
 
     # Model args
     parser.add_argument("--batch_size", type=int, default=DEFAULT_BATCH_SIZE)
