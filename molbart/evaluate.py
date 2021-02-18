@@ -5,7 +5,7 @@ from pathlib import Path
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import TensorBoardLogger
 
-from molbart.models import TransformerModel, ReactionPredModel
+from molbart.models import BARTModel, ReactionPredModel
 from molbart.dataset import Uspto50, FineTuneReactionDataModule
 from molbart.decode import DecodeSampler
 
@@ -44,7 +44,7 @@ def load_tokeniser(args):
 
 
 def load_model(args, sampler):
-    pre_trained = TransformerModel.load_from_checkpoint(args.pre_trained_path)
+    pre_trained = BARTModel.load_from_checkpoint(args.pre_trained_path)
     model = ReactionPredModel.load_from_checkpoint(
         args.model_path,
         model=pre_trained,
