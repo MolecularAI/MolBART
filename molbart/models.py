@@ -660,7 +660,7 @@ class ReactionPredModel(pl.LightningModule):
 
         target_smiles = batch["target_smiles"]
         mols, log_lhs = self.model.sample_molecules(batch, sampling_alg=self.test_sampling_alg)
-        metrics = self.sampler.calc_sampling_metrics(mol, target_smiles)
+        metrics = self.sampler.calc_sampling_metrics(mols, target_smiles)
 
         test_outputs = {
             "test_loss": loss,
