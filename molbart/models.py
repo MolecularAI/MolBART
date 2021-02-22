@@ -581,7 +581,8 @@ class ReactionPredModel(pl.LightningModule):
 
         self.model.sampler = self.sampler
         self.model.num_beams = self.num_beams
-        self.model.device = self.device
+        #self.model.device = self.device
+        self.model.to(self.device)
 
         self.use_swa = False
         self.swa_model = None
@@ -643,7 +644,7 @@ class ReactionPredModel(pl.LightningModule):
 
         target_smiles = batch["target_smiles"]
         mols, log_lhs = self.model.sample_molecules(batch, sampling_alg=self.val_sampling_alg)
-        metrics = self.sampler.calc_sampling_metrics(mol_strs, target_smiles)
+        metrics = self.sampler.calc_sampling_metrics(mol, target_smiles)
 
         self.log("val_loss", loss)
         self.log("val_accuracy", char_acc)
@@ -659,7 +660,7 @@ class ReactionPredModel(pl.LightningModule):
 
         target_smiles = batch["target_smiles"]
         mols, log_lhs = self.model.sample_molecules(batch, sampling_alg=self.test_sampling_alg)
-        metrics = self.sampler.calc_sampling_metrics(mol_strs, target_smiles)
+        metrics = self.sampler.calc_sampling_metrics(mol, target_smiles)
 
         test_outputs = {
             "test_loss": loss,
