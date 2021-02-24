@@ -1,6 +1,7 @@
 #!/bin/bash
-python -m molbart.train 
+python -m molbart.train \
  --data_path ../data/chembl_27.pickle \
- --tokeniser_path ../tokenisers/mol_opt_tokeniser.pickle \
  --model_type bart \
- --lr 0.005 
+ --lr 0.003 \
+ --epochs 20 \
+ --train_tokens 4096
