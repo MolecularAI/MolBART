@@ -21,16 +21,21 @@ DEFAULT_AUGMENT = True
 
 
 def build_model(args, sampler, vocab_size, total_steps, pad_token_idx):
+    # These args don't affect the model directly but will be saved by lightning as hparams
+    # Tensorboard doesn't like None so we need to convert to string
+    augment = "None" if args.augment is None else args.augment
+    train_tokens = "None" if args.train_tokens is None else args.train_tokens
+    num_buckets = "None" if args.num_buckets is None else args.num_buckets
     extra_args = {
         "batch_size": args.batch_size,
         "acc_batches": args.acc_batches,
         "mask_prob": args.mask_prob,
         "epochs": args.epochs,
         "clip_grad": args.clip_grad,
-        "train_tokens": args.train_tokens,
-        "num_buckets": args.num_buckets,
+        "train_tokens": train_tokens,
+        "num_buckets": num_buckets,
         "limit_val_batches": args.limit_val_batches,
-        "augment": args.augment,
+        "augment": augment
     }
 
     if args.model_type == "bart":
@@ -63,7 +68,7 @@ def main(args):
     print("Finished tokeniser.")
 
     print("Reading dataset...")
-    dataset = util.build_dataset("chembl", args.data_path)
+    dataset = util.build_dataset(args.dataset, args.data_path)
     print("Finished dataset.")
 
     print("Building data module...")
@@ -98,6 +103,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     # Program level args
+    parser.add_argument("--dataset", type=str)
     parser.add_argument("--data_path", type=str)
     parser.add_argument("--model_type", type=str)
     parser.add_argument("--vocab_path", type=str, default=util.DEFAULT_VOCAB_PATH)

@@ -8,7 +8,7 @@ from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 
 from molbart.tokeniser import MolEncTokeniser
 from molbart.models.bart_fine_tune import ReactionBART
-from molbart.data.datasets import Chembl, Uspto50, UsptoMit
+from molbart.data.datasets import Chembl, Uspto50, UsptoMit, Zinc
 from molbart.data.datamodules import MoleculeDataModule, FineTuneReactionDataModule
 
 
@@ -39,6 +39,8 @@ def build_dataset(dataset_type, data_path):
     elif dataset_type == "chembl":
         dataset = Chembl(data_path)
         print("Using Chembl dataset.")
+    elif dataset_type == "zinc":
+        dataset = Zinc(data_path)
     else:
         raise ValueError(f"Unknown dataset {dataset_type}.")
 
