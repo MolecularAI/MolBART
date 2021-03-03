@@ -20,6 +20,7 @@ from molbart.models.util import (
 class _AbsTransformerModel(pl.LightningModule):
     def __init__(
         self,
+        pad_token_idx,
         vocab_size, 
         d_model,
         num_layers, 
@@ -35,6 +36,7 @@ class _AbsTransformerModel(pl.LightningModule):
     ):
         super().__init__()
 
+        self.pad_token_idx = pad_token_idx
         self.vocab_size = vocab_size
         self.d_model = d_model
         self.num_layers = num_layers
@@ -50,7 +52,7 @@ class _AbsTransformerModel(pl.LightningModule):
         # Additional args passed in to **kwargs in init will also be saved
         self.save_hyperparameters()
 
-        self.emb = nn.Embedding(vocab_size, d_model)
+        self.emb = nn.Embedding(vocab_size, d_model, padding_idx=pad_token_idx)
         self.dropout = nn.Dropout(dropout)
         self.register_buffer("pos_emb", self._positional_embs())
 
@@ -182,6 +184,7 @@ class BERTModel(_AbsTransformerModel):
         **kwargs
     ):
         super().__init__(
+            pad_token_idx,
             vocab_size, 
             d_model,
             num_layers, 
@@ -199,8 +202,6 @@ class BERTModel(_AbsTransformerModel):
         self.sampler = decode_sampler
         self.val_sampling_alg = "greedy"
         self.num_beams = 5
-
-        self.pad_token_idx = pad_token_idx
 
         enc_norm = nn.LayerNorm(d_model)
         enc_layer = MaskedEncoderLayer(d_model, num_heads, d_feedforward, dropout, activation)
@@ -305,6 +306,7 @@ class BARTModel(_AbsTransformerModel):
         **kwargs
     ):
         super().__init__(
+            pad_token_idx,
             vocab_size, 
             d_model,
             num_layers, 
@@ -322,8 +324,6 @@ class BARTModel(_AbsTransformerModel):
         self.sampler = decode_sampler
         self.val_sampling_alg = "greedy"
         self.num_beams = 5
-
-        self.pad_token_idx = pad_token_idx
 
         enc_norm = nn.LayerNorm(d_model)
         dec_norm = nn.LayerNorm(d_model)

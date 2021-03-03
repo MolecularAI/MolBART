@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 import pytorch_lightning as pl
-from torch.optim.swa_utils import AveragedModel, SWALR
 from torch.optim.lr_scheduler import OneCycleLR
 
 from molbart.models.util import FuncLR
