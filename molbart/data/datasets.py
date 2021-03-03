@@ -1,3 +1,4 @@
+import os
 import random
 import functools
 import torch
@@ -7,6 +8,7 @@ from pathlib import Path
 from rdkit import Chem
 from typing import Optional
 from torch.utils.data import Dataset
+from concurrent.futures import ProcessPoolExecutor
 
 
 class _AbsDataset(Dataset):
@@ -238,6 +240,50 @@ class Chembl(MoleculeDataset):
             val_idxs=val_idxs,
             test_idxs=test_idxs
         )
+
+    def _save_idxs(self, df):
+        val_idxs = df.index[df["set"] == "val"].tolist()
+        test_idxs = df.index[df["set"] == "test"].tolist()
+
+        idxs_intersect = set(val_idxs).intersection(set(test_idxs))
+        if len(idxs_intersect) > 0:
+            raise ValueError(f"Val idxs and test idxs overlap")
+
+        idxs = set(range(len(df.index)))
+        train_idxs = idxs - set(val_idxs).union(set(test_idxs))
+
+        return train_idxs, val_idxs, test_idxs
+
+
+class Zinc(MoleculeDataset):
+    def __init__(self, data_path):
+        path = Path(data_path)
+
+        # If path is a directory then read every subfile
+        if path.is_dir():
+            df = self._read_dir_df(path)
+        else:
+            df = pd.read_csv(path)
+
+        smiles = df["smiles"].tolist()
+        train_idxs, val_idxs, test_idxs = self._save_idxs(df)
+
+        super().__init__(
+            smiles,
+            train_idxs=train_idxs,
+            val_idxs=val_idxs,
+            test_idxs=test_idxs,
+            transform=lambda smi: Chem.MolFromSmiles(smi)
+        )
+
+    def _read_dir_df(self, path):
+        num_cpus = len(os.sched_getaffinity(0))
+        executor = ProcessPoolExecutor(num_cpus)
+        files = [f for f in path.iterdir()]
+        futures = [executor.submit(pd.read_csv, f) for f in files]
+        dfs = [future.result() for future in futures]
+        zinc_df = pd.concat(dfs, ignore_index=True, copy=False)
+        return zinc_df
 
     def _save_idxs(self, df):
         val_idxs = df.index[df["set"] == "val"].tolist()
