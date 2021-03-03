@@ -1,6 +1,6 @@
 import argparse
 from pytorch_lightning import Trainer
-
+import os
 import molbart.util as util
 from molbart.models.pre_train import BARTModel
 from molbart.decoder import DecodeSampler
@@ -86,6 +86,7 @@ def main(args):
     print("Finished trainer.")
 
     print("Fitting data module to trainer")
+    
     trainer.fit(model, dm)
     print("Finished training.")
 

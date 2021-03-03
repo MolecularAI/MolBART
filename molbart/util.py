@@ -1,3 +1,4 @@
+#!/usr/bin/env /home/hassan/anaconda3/envs/cheminf/bin/python3
 import math
 import torch
 import pickle
@@ -82,7 +83,7 @@ def load_tokeniser(vocab_path, chem_token_start):
 
 
 def build_trainer(args):
-    gpus = 1 if use_gpu else None
+    gpus = 2 if use_gpu else None
     epochs = args.epochs
     acc_batches = args.acc_batches
     precision = 32
@@ -93,14 +94,16 @@ def build_trainer(args):
 
     trainer = Trainer(
         logger=logger, 
-        gpus=gpus, 
+        gpus=gpus,
         min_epochs=epochs, 
         max_epochs=epochs,
         precision=precision,
         accumulate_grad_batches=acc_batches,
         gradient_clip_val=args.clip_grad,
         limit_val_batches=args.limit_val_batches,
-        callbacks=[lr_monitor, checkpoint_cb]
+        callbacks=[lr_monitor, checkpoint_cb],
+        accelerator='ddp',
+        prepare_data_per_node=False
     )
     return trainer
 

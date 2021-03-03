@@ -77,7 +77,17 @@ class ReactionBART(BARTModel):
             "val_invalid": metrics["invalid"]
         }
         return val_outputs
-
+    def validation_epoch_end(self, outputs):
+        #sys.stderr.write(str(outputs))
+        val_loss =outputs[0]['val_loss']# torch.stack([ou['val_loss'] for x in outputs]).mean()
+        val_token_acc = outputs[0]['val_token_acc']#torch.stack([x['val_token_acc'] for x in outputs]).mean()
+        #val_perplexity = outputs[0]['val_perplexity']#torch.stack([x['val_perplexity'] for x in outputs]).mean()
+        val_molecular_accuracy = outputs[0]['val_molecular_accuracy']# torch.stack(['val_molecular_accuracy'] for x in outputs).mean()
+        val_invalid_smiles = outputs[0]['val_invalid']#torch.stack(['val_invalid_smiles'] for x in outputs).mean()
+        log = {'val_loss': val_loss, 'val_token_acc': val_token_acc, 'val_molecular_accuracy': val_molecular_accuracy, 'val_invalid': val_invalid_smiles}
+        self._log_dict(log)
+        # avg_outputs = self._avg_dicts(outputs)
+        # self._log_dict(avg_outputs)
     def test_step(self, batch, batch_idx):
         model_output = self.forward(batch)
 
