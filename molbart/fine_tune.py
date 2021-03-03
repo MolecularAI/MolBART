@@ -29,14 +29,18 @@ def load_model(args, sampler, vocab_size, total_steps, pad_token_idx):
         raise ValueError(f"Unknown model type {args.model_type}")
 
     # These args don't affect the model directly but will be saved by lightning as hparams
+    # Tensorboard doesn't like None so we need to convert to string
+    augment = "None" if args.augment is None else args.augment
+    train_tokens = "None" if args.train_tokens is None else args.train_tokens
+    num_buckets = "None" if args.num_buckets is None else args.num_buckets
     extra_args = {
         "batch_size": args.batch_size,
         "acc_batches": args.acc_batches,
         "epochs": args.epochs,
         "clip_grad": args.clip_grad,
-        "augment": args.augment,
-        "train_tokens": args.train_tokens,
-        "num_buckets": args.num_buckets,
+        "augment": augment,
+        "train_tokens": train_tokens,
+        "num_buckets": num_buckets,
         "limit_val_batches": args.limit_val_batches
     }
 
@@ -65,6 +69,8 @@ def load_model(args, sampler, vocab_size, total_steps, pad_token_idx):
             args.model_path,
             decode_sampler=sampler,
             pad_token_idx=pad_token_idx,
+            vocab_size=vocab_size,
+            num_steps=total_steps,
             lr=args.lr,
             weight_decay=args.weight_decay,
             schedule=args.schedule,
