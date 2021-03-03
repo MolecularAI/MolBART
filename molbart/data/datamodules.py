@@ -6,7 +6,7 @@ from functools import partial
 from typing import List, Optional
 from torch.utils.data import DataLoader
 from pysmilesutils.augment import MolRandomizer
-import sys
+
 from molbart.tokeniser import MolEncTokeniser
 from molbart.data.util import TokenSampler
 from molbart.data.datasets import MoleculeDataset, ReactionDataset
@@ -349,20 +349,9 @@ class FineTuneReactionDataModule(_AbsDataModule):
                 "prods_masks" (List[List[int]]): 0 refers to not padded, 1 refers to padded
             }
         """
-        # TODO: need to toggle between one and more gpus
-        #try:
-        #if isinstance(type(batch),list):
+
         reacts, prods = tuple(zip(*batch))
-        # elif isinstance(type(batch), tuple):
-        #     reacts = tuple(batch[0])
-        #     prods = tuple(batch[1])
-        # else:
-        #     sys.stderr.write(str(batch))
-        #     reacts = list(batch)
-        #     prods = list(batch)
-        # except:
-        #     sys.stderr.write(str(batch))
-        #     sys.exit(0)
+
         if self.augment == "reactants" or self.augment == "all":
             reacts = [Chem.MolToSmiles(react, canonical=False) for react in self.aug(reacts)]
         else:

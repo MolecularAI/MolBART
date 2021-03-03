@@ -4,7 +4,6 @@ import torch.nn as nn
 import pytorch_lightning as pl
 from torch.optim.lr_scheduler import OneCycleLR
 from functools import partial
-import sys
 
 from molbart.models.util import (
     PreNormEncoderLayer,
@@ -80,7 +79,7 @@ class _AbsTransformerModel(pl.LightningModule):
         model_output = self.forward(batch)
         loss = self._calc_loss(batch, model_output)
 
-        self.log("train_loss", loss, on_step=True, logger=True, sync_dist=True)
+        self.log("train_loss", loss, on_step=True, logger=True)
 
         return loss
 
@@ -149,16 +148,14 @@ class _AbsTransformerModel(pl.LightningModule):
     def _avg_dicts(self, colls):
         complete_dict = {key: [] for key, val in colls[0].items()}
         for coll in colls:
-            for key in complete_dict.keys():
-                sys.stderr.write(str(key))
-                complete_dict[key].append(coll[key])
-        
+            [complete_dict[key].append(coll[key]) for key in complete_dict.keys()]
+
         avg_dict = {key: sum(l) / len(l) for key, l in complete_dict.items()}
         return avg_dict
 
     def _log_dict(self, coll):
         for key, val in coll.items():
-            self.log(key, val)#, sync_dist=True)
+            self.log(key, val)
 
 
 # ----------------------------------------------------------------------------------------------------------
@@ -465,16 +462,8 @@ class BARTModel(_AbsTransformerModel):
         return val_outputs
 
     def validation_epoch_end(self, outputs):
-        #sys.stderr.write(str(outputs))
-        val_loss =outputs[0]['val_loss']# torch.stack([ou['val_loss'] for x in outputs]).mean()
-        val_token_acc = outputs[0]['val_token_acc']#torch.stack([x['val_token_acc'] for x in outputs]).mean()
-        val_perplexity = outputs[0]['val_perplexity']#torch.stack([x['val_perplexity'] for x in outputs]).mean()
-        val_molecular_accuracy = outputs[0]['val_molecular_accuracy']# torch.stack(['val_molecular_accuracy'] for x in outputs).mean()
-        val_invalid_smiles = outputs[0]['val_invalid_smiles']#torch.stack(['val_invalid_smiles'] for x in outputs).mean()
-        log = {'val_loss': val_loss, 'val_token_acc': val_token_acc, 'val_perplexity': val_perplexity, 'val_molecular_accuracy': val_molecular_accuracy, 'val_invalid_smiles': val_invalid_smiles}
-        self._log_dict(log)
-        # avg_outputs = self._avg_dicts(outputs)
-        # self._log_dict(avg_outputs)
+        avg_outputs = self._avg_dicts(outputs)
+        self._log_dict(avg_outputs)
 
     def _calc_loss(self, batch_input, model_output):
         """ Calculate the loss for the model
