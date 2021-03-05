@@ -19,7 +19,7 @@ This file contains a simple data loader for csv files that have SMILES strings o
 
 ### train.py
 
-This file contains the training code that sets up Megatron and DeepSpeed and runs the training loop. Currently, the code loads in a subset of ChEMBL in CSV format and runs training (line 320). Replace this with file with your own data.
+This file contains the training code that sets up Megatron and DeepSpeed and runs the training loop. Currently, the code loads in a subset of ChEMBL in CSV format and runs training (line 320). Replace this file with your own data.
 
 ### ds_config.json
 
