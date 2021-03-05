@@ -1,0 +1,5 @@
+deepspeed
+apex
+torch
+pandas
+numpy
