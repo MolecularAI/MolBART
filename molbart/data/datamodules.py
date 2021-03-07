@@ -150,12 +150,13 @@ class MoleculeDataModule(_AbsDataModule):
         tokeniser: MolEncTokeniser,
         batch_size: int,
         max_seq_len: int,
+        task: str,
         train_token_batch_size: Optional[int] = None,
         num_buckets: Optional[int] = None,
-        val_idxs: Optional[List[int]] = None, 
+        val_idxs: Optional[List[int]] = None,
         test_idxs: Optional[List[int]] = None,
         split_perc: Optional[float] = 0.2,
-        augment: Optional[bool] = True 
+        augment: Optional[bool] = True
     ):
         super(MoleculeDataModule, self).__init__(
             dataset,
@@ -175,6 +176,8 @@ class MoleculeDataModule(_AbsDataModule):
         else:
             print("No molecular augmentation.")
             self.aug = None
+
+        self.task = task
 
     def _collate(self, batch, train=True):
         token_output = self._prepare_tokens(batch, train)
@@ -208,10 +211,13 @@ class MoleculeDataModule(_AbsDataModule):
         aug = self.aug is not None
         if aug:
             encoder_mols = self.aug(batch)
-            decoder_mols = self.aug(batch)
         else:
             encoder_mols = batch[:]
-            decoder_mols = batch[:]
+
+        if self.task == "mask":
+            decoder_mols = encoder_mols[:]
+        else:
+            decoder_mols = self.aug(encoder_mols)
 
         canonical = self.aug is None
         enc_smiles = []
@@ -235,15 +241,16 @@ class MoleculeDataModule(_AbsDataModule):
             enc_smiles.append(enc_smi)
             dec_smiles.append(dec_smi)
 
-        enc_token_output = self.tokeniser.tokenise(enc_smiles, mask=True, pad=True)
-        dec_token_output = self.tokeniser.tokenise(dec_smiles, pad=True)
+        if self.task == "aug":
+            enc_token_output = self.tokeniser.tokenise(enc_smiles, pad=True)
+            enc_tokens = enc_token_output["original_tokens"]
+        else:
+            enc_token_output = self.tokeniser.tokenise(enc_smiles, mask=True, pad=True)
+            enc_tokens = enc_token_output["masked_tokens"]
 
         enc_mask = enc_token_output["pad_masks"]
-        if train:
-            enc_tokens = enc_token_output["masked_tokens"]
-        else:
-            enc_tokens = enc_token_output["original_tokens"]
 
+        dec_token_output = self.tokeniser.tokenise(dec_smiles, pad=True)
         dec_tokens = dec_token_output["original_tokens"]
         dec_mask = dec_token_output["pad_masks"]
 
