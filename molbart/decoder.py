@@ -6,12 +6,10 @@ class DecodeSampler:
     def __init__(
         self,
         tokeniser,
-        max_seq_len,
-        device=None
+        max_seq_len
     ):
         self.tokeniser = tokeniser
         self.max_seq_len = max_seq_len
-        self.device = "cpu" if device is None else device
 
         assert max_seq_len > 1, f"Max sequence must be at least 2, got {max_seq_len}"
 
@@ -23,7 +21,7 @@ class DecodeSampler:
 
         RDLogger.DisableLog("rdApp.*")
 
-    def decode(self, decode_fn, batch_size, sampling_alg="greedy", **kwargs):
+    def decode(self, decode_fn, batch_size, sampling_alg="greedy", device="cpu", **kwargs):
         """ Sample a molecule from a model by calling the decode function argument
 
         Args:
@@ -37,22 +35,23 @@ class DecodeSampler:
         """
 
         if sampling_alg == "greedy":
-            output = self.greedy_decode(decode_fn, batch_size)
+            output = self.greedy_decode(decode_fn, batch_size, device)
 
         elif sampling_alg == "beam":
-            output = self.beam_decode(decode_fn, batch_size, kwargs)
+            output = self.beam_decode(decode_fn, batch_size, device, kwargs)
 
         else:
             raise ValueError(f"Unknown sampling algorithm {sampling_alg}")
 
         return output
 
-    def greedy_decode(self, decode_fn, batch_size):
+    def greedy_decode(self, decode_fn, batch_size, device="cpu"):
         """ Sample molecules from the model using greedy search
 
         Args:
             decode_fn (fn): Function used to apply tokens to model and produce log probability distribution
             batch_size (int): Number of molecules to sample
+            device: Torch device to create tensors on
 
         Returns:
             (List[str], List[float]): Tuple of (molecules, their log likelihoods)
@@ -61,8 +60,8 @@ class DecodeSampler:
         # Create tensors which will be reused
         token_ids = [self.begin_token_id] + ([self.pad_token_id] * (self.max_seq_len - 1))
         token_ids = [token_ids] * batch_size
-        token_ids = torch.tensor(token_ids, device=self.device).transpose(0, 1)
-        pad_mask = torch.zeros((self.max_seq_len, batch_size), device=self.device, dtype=torch.bool)
+        token_ids = torch.tensor(token_ids, device=device).transpose(0, 1)
+        pad_mask = torch.zeros((self.max_seq_len, batch_size), device=device, dtype=torch.bool)
         log_lhs = torch.zeros((batch_size))
 
         # Iteratively apply the tokens to the model and build up the sequence
@@ -104,7 +103,7 @@ class DecodeSampler:
 
         return mol_strs, log_lhs
 
-    def beam_decode(self, decode_fn, batch_size, k):
+    def beam_decode(self, decode_fn, batch_size, device="cpu", k=5):
         """ Sample molecules from the model using beam search
 
         Samples molecules by iteratively building up the sequence of SMILES characters using beam search.
@@ -113,6 +112,7 @@ class DecodeSampler:
         Args:
             decode_fn (fn): Function used to apply tokens to model and produce log probability distribution
             batch_size (int): Number of molecules to sample
+            device: Torch device to create tensors on
             k (int): Number of beams
 
         Returns:
@@ -122,8 +122,8 @@ class DecodeSampler:
         # Create tensors which will be reused
         token_ids = [self.begin_token_id] + ([self.pad_token_id] * (self.max_seq_len - 1))
         token_ids = [token_ids] * batch_size
-        token_ids = torch.tensor(token_ids, device=self.device).transpose(0, 1)
-        pad_mask = torch.zeros((self.max_seq_len, batch_size), device=self.device, dtype=torch.bool)
+        token_ids = torch.tensor(token_ids, device=device).transpose(0, 1)
+        pad_mask = torch.zeros((self.max_seq_len, batch_size), device=device, dtype=torch.bool)
 
         ts = token_ids[:1, :]
         ms = pad_mask[:1, :]
