@@ -81,7 +81,7 @@ class _AbsTransformerModel(pl.LightningModule):
         model_output = self.forward(batch)
         loss = self._calc_loss(batch, model_output)
 
-        self.log("train_loss", loss, on_step=True, logger=True)
+        self.log("train_loss", loss.item(), on_step=True, logger=True, sync_dist=True)
 
         return loss
 
@@ -157,7 +157,7 @@ class _AbsTransformerModel(pl.LightningModule):
 
     def _log_dict(self, coll):
         for key, val in coll.items():
-            self.log(key, val)
+            self.log(key, val, sync_dist=True)
 
 
 # ----------------------------------------------------------------------------------------------------------
@@ -565,13 +565,12 @@ class BARTModel(_AbsTransformerModel):
         _, batch_size, _ = tuple(memory.size())
 
         decode_fn = partial(self._decode_fn, memory=memory, mem_pad_mask=mem_mask)
-        self.sampler.device = self.device
 
         if sampling_alg == "greedy":
-            mol_strs, log_lhs = self.sampler.greedy_decode(decode_fn, batch_size)
+            mol_strs, log_lhs = self.sampler.greedy_decode(decode_fn, batch_size, self.device)
 
         elif sampling_alg == "beam":
-            mol_strs, log_lhs = self.sampler.beam_decode(decode_fn, batch_size, self.num_beams)
+            mol_strs, log_lhs = self.sampler.beam_decode(decode_fn, batch_size, self.device, k=self.num_beams)
 
         else:
             raise ValueError(f"Unknown sampling algorithm {sampling_alg}")
