@@ -1,7 +1,8 @@
 #!/bin/bash
 python -m molbart.train \
- --data_path ../data/chembl_27.pickle \
+ --dataset zinc \
+ --data_path ../data/zinc \
  --model_type bart \
- --lr 0.003 \
- --epochs 20 \
- --train_tokens 4096
+ --lr 0.001 \
+ --gpus 2 \
+ --epochs 1

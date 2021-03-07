@@ -1,5 +1,5 @@
+import os
 import argparse
-from pytorch_lightning import Trainer
 
 import molbart.util as util
 from molbart.decoder import DecodeSampler
@@ -29,14 +29,18 @@ def load_model(args, sampler, vocab_size, total_steps, pad_token_idx):
         raise ValueError(f"Unknown model type {args.model_type}")
 
     # These args don't affect the model directly but will be saved by lightning as hparams
+    # Tensorboard doesn't like None so we need to convert to string
+    augment = "None" if args.augment is None else args.augment
+    train_tokens = "None" if args.train_tokens is None else args.train_tokens
+    num_buckets = "None" if args.num_buckets is None else args.num_buckets
     extra_args = {
         "batch_size": args.batch_size,
         "acc_batches": args.acc_batches,
         "epochs": args.epochs,
         "clip_grad": args.clip_grad,
-        "augment": args.augment,
-        "train_tokens": args.train_tokens,
-        "num_buckets": args.num_buckets,
+        "augment": augment,
+        "train_tokens": train_tokens,
+        "num_buckets": num_buckets,
         "limit_val_batches": args.limit_val_batches
     }
 
@@ -65,6 +69,8 @@ def load_model(args, sampler, vocab_size, total_steps, pad_token_idx):
             args.model_path,
             decode_sampler=sampler,
             pad_token_idx=pad_token_idx,
+            vocab_size=vocab_size,
+            num_steps=total_steps,
             lr=args.lr,
             weight_decay=args.weight_decay,
             schedule=args.schedule,
@@ -75,6 +81,8 @@ def load_model(args, sampler, vocab_size, total_steps, pad_token_idx):
 
 
 def main(args):
+    util.seed_everything(73)
+
     print("Building tokeniser...")
     tokeniser = util.load_tokeniser(args.vocab_path, args.chem_token_start_idx)
     print("Finished tokeniser.")
@@ -85,6 +93,10 @@ def main(args):
 
     print("Building data module...")
     dm = util.build_reaction_datamodule(args, dataset, tokeniser)
+    num_available_cpus = len(os.sched_getaffinity(0))
+    num_workers = num_available_cpus // args.gpus
+    dm._num_workers = num_workers
+    print(f"Using {str(num_workers)} workers for data module.")
     print("Finished datamodule.")
 
     vocab_size = len(tokeniser)
@@ -141,6 +153,7 @@ if __name__ == "__main__":
     parser.add_argument("--train_tokens", type=int, default=DEFAULT_TRAIN_TOKENS)
     parser.add_argument("--num_buckets", type=int, default=DEFAULT_NUM_BUCKETS)
     parser.add_argument("--limit_val_batches", type=float, default=DEFAULT_LIMIT_VAL_BATCHES)
+    parser.add_argument("--gpus", type=int, default=util.DEFAULT_GPUS)
 
     args = parser.parse_args()
     main(args)

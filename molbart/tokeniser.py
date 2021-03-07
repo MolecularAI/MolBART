@@ -16,7 +16,7 @@ class MolEncTokeniser:
         mask_token="<MASK>",
         sep_token="<SEP>",
         mask_prob=0.15,
-        show_mask_token_prob=0.8
+        show_mask_token_prob=1.0
     ):
         """ Initialise the tokeniser
 
@@ -64,7 +64,7 @@ class MolEncTokeniser:
         mask_token_idx=4,
         sep_token_idx=5,
         mask_prob=0.15,
-        show_mask_token_prob=0.8
+        show_mask_token_prob=1.0
     ):
         """ Load the tokeniser object from a vocab file and regex
 
@@ -126,7 +126,7 @@ class MolEncTokeniser:
         mask_token="<MASK>",
         sep_token="<SEP>",
         mask_prob=0.15,
-        show_mask_token_prob=0.8
+        show_mask_token_prob=1.0
     ):
         """ Build the tokeniser from smiles strings and a regex
 

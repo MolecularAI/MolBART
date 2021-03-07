@@ -2,7 +2,10 @@
 .vscode/
 __pycache__
 lightning_logs
+molbart.egg-info/
+slurm/
 tb_logs/
 saved_models/
 notebooks/data/
 notebooks/.ipynb_checkpoints/
+notebooks/playground.ipynb

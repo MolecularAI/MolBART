@@ -6,12 +6,10 @@ class DecodeSampler:
     def __init__(
         self,
         tokeniser,
-        max_seq_len,
-        device=None
+        max_seq_len
     ):
         self.tokeniser = tokeniser
         self.max_seq_len = max_seq_len
-        self.device = "cpu" if device is None else device
 
         assert max_seq_len > 1, f"Max sequence must be at least 2, got {max_seq_len}"
 
@@ -19,9 +17,11 @@ class DecodeSampler:
         self.pad_token_id = self.tokeniser.vocab[self.tokeniser.pad_token]
         self.end_token_id = self.tokeniser.vocab[self.tokeniser.end_token]
 
+        self.bad_token_ll = -1e5
+
         RDLogger.DisableLog("rdApp.*")
 
-    def decode(self, decode_fn, batch_size, sampling_alg="greedy", **kwargs):
+    def decode(self, decode_fn, batch_size, sampling_alg="greedy", device="cpu", **kwargs):
         """ Sample a molecule from a model by calling the decode function argument
 
         Args:
@@ -35,22 +35,23 @@ class DecodeSampler:
         """
 
         if sampling_alg == "greedy":
-            output = self.greedy_decode(decode_fn, batch_size)
+            output = self.greedy_decode(decode_fn, batch_size, device)
 
         elif sampling_alg == "beam":
-            output = self.beam_decode(decode_fn, batch_size, kwargs)
+            output = self.beam_decode(decode_fn, batch_size, device, kwargs)
 
         else:
             raise ValueError(f"Unknown sampling algorithm {sampling_alg}")
 
         return output
 
-    def greedy_decode(self, decode_fn, batch_size):
+    def greedy_decode(self, decode_fn, batch_size, device="cpu"):
         """ Sample molecules from the model using greedy search
 
         Args:
             decode_fn (fn): Function used to apply tokens to model and produce log probability distribution
             batch_size (int): Number of molecules to sample
+            device: Torch device to create tensors on
 
         Returns:
             (List[str], List[float]): Tuple of (molecules, their log likelihoods)
@@ -59,8 +60,8 @@ class DecodeSampler:
         # Create tensors which will be reused
         token_ids = [self.begin_token_id] + ([self.pad_token_id] * (self.max_seq_len - 1))
         token_ids = [token_ids] * batch_size
-        token_ids = torch.tensor(token_ids, device=self.device).transpose(0, 1)
-        pad_mask = torch.zeros((self.max_seq_len, batch_size), device=self.device, dtype=torch.bool)
+        token_ids = torch.tensor(token_ids, device=device).transpose(0, 1)
+        pad_mask = torch.zeros((self.max_seq_len, batch_size), device=device, dtype=torch.bool)
         log_lhs = torch.zeros((batch_size))
 
         # Iteratively apply the tokens to the model and build up the sequence
@@ -93,7 +94,7 @@ class DecodeSampler:
             new_ids[new_pad_mask] = self.pad_token_id
             token_ids[i, :] = new_ids
             pad_mask[i, :] = new_pad_mask
-            log_lhs + new_probs.cpu()
+            log_lhs += new_probs.cpu()
 
         tokens = token_ids.transpose(0, 1).tolist()
         tokens = self.tokeniser.convert_ids_to_tokens(tokens)
@@ -102,7 +103,7 @@ class DecodeSampler:
 
         return mol_strs, log_lhs
 
-    def beam_decode(self, decode_fn, batch_size, k):
+    def beam_decode(self, decode_fn, batch_size, device="cpu", k=5):
         """ Sample molecules from the model using beam search
 
         Samples molecules by iteratively building up the sequence of SMILES characters using beam search.
@@ -111,6 +112,7 @@ class DecodeSampler:
         Args:
             decode_fn (fn): Function used to apply tokens to model and produce log probability distribution
             batch_size (int): Number of molecules to sample
+            device: Torch device to create tensors on
             k (int): Number of beams
 
         Returns:
@@ -120,8 +122,8 @@ class DecodeSampler:
         # Create tensors which will be reused
         token_ids = [self.begin_token_id] + ([self.pad_token_id] * (self.max_seq_len - 1))
         token_ids = [token_ids] * batch_size
-        token_ids = torch.tensor(token_ids, device=self.device).transpose(0, 1)
-        pad_mask = torch.zeros((self.max_seq_len, batch_size), device=self.device, dtype=torch.bool)
+        token_ids = torch.tensor(token_ids, device=device).transpose(0, 1)
+        pad_mask = torch.zeros((self.max_seq_len, batch_size), device=device, dtype=torch.bool)
 
         ts = token_ids[:1, :]
         ms = pad_mask[:1, :]
@@ -232,13 +234,15 @@ class DecodeSampler:
             new_pm_list.append(pad_mask)
             new_lls_list.append(lls)
 
-        # Update all tokens, pad masks and lls 
-        for beam_idx, (ts, pm, lls) in enumerate(zip(new_ts_list, new_pm_list, new_lls_list)):
-            token_ids_list[beam_idx] = ts
-            pad_mask_list[beam_idx] = pm
-            lls_list[beam_idx] = lls
-
         complete = sum(beam_complete) == len(beam_complete)
+
+        # Update all tokens, pad masks and lls
+        if not complete:
+            for beam_idx, (ts, pm, lls) in enumerate(zip(new_ts_list, new_pm_list, new_lls_list)):
+                token_ids_list[beam_idx] = ts
+                pad_mask_list[beam_idx] = pm
+                lls_list[beam_idx] = lls
+
         return complete
 
     def _beam_step(self, decode_fn, tokens, mask, lls):
@@ -259,8 +263,20 @@ class DecodeSampler:
         """
 
         output_dist = decode_fn(tokens, mask)
-        next_token_lls = output_dist[-1, :, :]
-        seq_lls = (lls + next_token_lls.cpu().T).T
+        next_token_lls = output_dist[-1, :, :].cpu()
+
+        # Create a vector from which only a pad token can be sampled 
+        # And use this vector in the output for sequences which are complete
+        _, vocab_size = tuple(next_token_lls.shape)
+        complete_seq_ll = torch.ones((1, vocab_size)) * self.bad_token_ll
+        complete_seq_ll[:, self.pad_token_id] = 0.0
+
+        is_end_token = tokens[-1, :] == self.end_token_id
+        is_pad_token = tokens[-1, :] == self.pad_token_id
+        ll_mask = torch.logical_or(is_end_token, is_pad_token).cpu().unsqueeze(1)
+        masked_lls = (ll_mask * complete_seq_ll) + (~ll_mask * next_token_lls)
+
+        seq_lls = (lls + masked_lls.T).T
         return seq_lls
 
     @staticmethod

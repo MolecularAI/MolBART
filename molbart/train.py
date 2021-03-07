@@ -1,5 +1,5 @@
+import os
 import argparse
-from pytorch_lightning import Trainer
 
 import molbart.util as util
 from molbart.models.pre_train import BARTModel
@@ -17,20 +17,27 @@ DEFAULT_GRAD_CLIP = 1.0
 DEFAULT_TRAIN_TOKENS = None
 DEFAULT_NUM_BUCKETS = 12
 DEFAULT_LIMIT_VAL_BATCHES = 1.0
+DEFAULT_TASK = "mask_aug"
 DEFAULT_AUGMENT = True
 
 
 def build_model(args, sampler, vocab_size, total_steps, pad_token_idx):
+    # These args don't affect the model directly but will be saved by lightning as hparams
+    # Tensorboard doesn't like None so we need to convert to string
+    augment = "None" if args.augment is None else args.augment
+    train_tokens = "None" if args.train_tokens is None else args.train_tokens
+    num_buckets = "None" if args.num_buckets is None else args.num_buckets
     extra_args = {
         "batch_size": args.batch_size,
         "acc_batches": args.acc_batches,
         "mask_prob": args.mask_prob,
         "epochs": args.epochs,
         "clip_grad": args.clip_grad,
-        "train_tokens": args.train_tokens,
-        "num_buckets": args.num_buckets,
+        "train_tokens": train_tokens,
+        "num_buckets": num_buckets,
         "limit_val_batches": args.limit_val_batches,
-        "augment": args.augment,
+        "augment": augment,
+        "task": args.task
     }
 
     if args.model_type == "bart":
@@ -57,17 +64,34 @@ def build_model(args, sampler, vocab_size, total_steps, pad_token_idx):
 
 
 def main(args):
+    util.seed_everything(37)
+
+    if args.dataset == "zinc" and args.train_tokens is not None:
+        raise ValueError("train_tokens arg must be None when using zinc dataset.")
+
+    if args.gpus > 1 and args.train_tokens is not None:
+        raise ValueError("train_tokens arg must be None when training on multiple gpus.")
+
     print("Building tokeniser...")
     tokeniser = util.load_tokeniser(args.vocab_path, args.chem_token_start_idx)
     tokeniser.mask_prob = args.mask_prob
     print("Finished tokeniser.")
 
     print("Reading dataset...")
-    dataset = util.build_dataset("chembl", args.data_path)
+    if args.dataset == "zinc" and args.gpus > 1:
+        local_rank = int(os.environ.get("LOCAL_RANK", 0))
+        print(f"Reading dataset slice using local rank {str(local_rank)}")
+        dataset = util.read_zinc_slice(args.data_path, local_rank, args.gpus, args.batch_size)
+    else:
+        dataset = util.build_dataset(args.dataset, args.data_path)
     print("Finished dataset.")
 
     print("Building data module...")
     dm = util.build_molecule_datamodule(args, dataset, tokeniser)
+    num_available_cpus = len(os.sched_getaffinity(0))
+    num_workers = num_available_cpus // args.gpus
+    dm._num_workers = num_workers
+    print(f"Using {str(num_workers)} workers for data module.")
     print("Finished data module.")
 
     vocab_size = len(tokeniser)
@@ -98,6 +122,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     # Program level args
+    parser.add_argument("--dataset", type=str)
     parser.add_argument("--data_path", type=str)
     parser.add_argument("--model_type", type=str)
     parser.add_argument("--vocab_path", type=str, default=util.DEFAULT_VOCAB_PATH)
@@ -120,6 +145,8 @@ if __name__ == "__main__":
     parser.add_argument("--train_tokens", type=int, default=DEFAULT_TRAIN_TOKENS)
     parser.add_argument("--num_buckets", type=int, default=DEFAULT_NUM_BUCKETS)
     parser.add_argument("--limit_val_batches", type=float, default=DEFAULT_LIMIT_VAL_BATCHES)
+    parser.add_argument("--gpus", type=int, default=util.DEFAULT_GPUS)
+    parser.add_argument("--task", type=str, default=DEFAULT_TASK)
 
     parser.add_argument("--augment", dest="augment", action="store_true")
     parser.add_argument("--no_augment", dest="augment", action="store_false")

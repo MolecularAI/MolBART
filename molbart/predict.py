@@ -9,11 +9,10 @@ from molbart.decoder import DecodeSampler
 from molbart.models.pre_train import BARTModel
 from molbart.models.bart_fine_tune import ReactionBART
 from molbart.data.datasets import MoleculeDataset
-from molbart.data.datamodules import FineTuneReactionDataModule
+from molbart.data.datamodules import MoleculeDataModule
 
 
 DEFAULT_BATCH_SIZE = 32
-DEFAULT_MAX_SEQ_LEN = 256
 DEFAULT_NUM_BEAMS = 5
 
 
@@ -39,29 +38,33 @@ def build_dataset(args):
     return dataset
 
 
-def build_datamodule(args, dataset, tokeniser):
-    dm = FineTuneReactionDataModule(
+def build_datamodule(args, dataset, tokeniser, max_seq_len):
+    dm = MoleculeDataModule(
         dataset,
         tokeniser,
         args.batch_size,
-        args.max_seq_len,
-        forward_pred=True,
+        max_seq_len,
         val_idxs=dataset.val_idxs,
-        test_idxs=dataset.test_idxs
+        test_idxs=dataset.test_idxs,
+        augment=False
     )
     return dm
 
 
-def predict(args, model, test_loader):
+def predict(model, test_loader):
+    device = "cuda:0" if util.use_gpu else "cpu"
+    model = model.to(device)
     model.eval()
-    model.num_beams = args.num_beams
 
     smiles = []
     log_lhs = []
 
     for b_idx, batch in enumerate(test_loader):
+        device_batch = {
+            key: val.to(device) if type(val) == torch.Tensor else val for key, val in batch.items()
+        }
         with torch.no_grad():
-            smiles_batch, log_lhs_batch = model.sample_molecules(batch, sampling_alg="beam")
+            smiles_batch, log_lhs_batch = model.sample_molecules(device_batch, sampling_alg="beam")
 
         smiles.extend(smiles_batch)
         log_lhs.extend(log_lhs_batch)
@@ -90,18 +93,20 @@ def main(args):
     dataset = build_dataset(args)
     print("Finished dataset.")
 
-    print("Building data loader...")
-    dm = build_datamodule(args, dataset, tokeniser)
-    dm.setup()
-    test_loader = dm.test_dataloader()
-    print("Finished loader.")
-
-    sampler = DecodeSampler(tokeniser, args.max_seq_len)
+    sampler = DecodeSampler(tokeniser, util.DEFAULT_MAX_SEQ_LEN)
     pad_token_idx = tokeniser.vocab[tokeniser.pad_token]
 
     print("Loading model...")
     model = util.load_eval_model(args, sampler, pad_token_idx)
+    model.num_beams = args.num_beams
+    sampler.max_seq_len = model.max_seq_len
     print("Finished model.")
+
+    print("Building data loader...")
+    dm = build_datamodule(args, dataset, tokeniser, model.max_seq_len)
+    dm.setup()
+    test_loader = dm.test_dataloader()
+    print("Finished loader.")
 
     print("Evaluating model...")
     smiles, log_lhs = predict(model, test_loader)
@@ -125,7 +130,6 @@ if __name__ == "__main__":
 
     # Model args
     parser.add_argument("--batch_size", type=int, default=DEFAULT_BATCH_SIZE)
-    parser.add_argument("--max_seq_len", type=int, default=DEFAULT_MAX_SEQ_LEN)
     parser.add_argument("--num_beams", type=int, default=DEFAULT_NUM_BEAMS)
 
     args = parser.parse_args()
