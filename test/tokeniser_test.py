@@ -130,9 +130,9 @@ def test_tokenise_mask():
     tokeniser = MolEncTokeniser.from_smiles(smiles_data, regex, mask_prob=0.4)
     tokens = tokeniser.tokenise(smiles_data, sents2=smiles_data, mask=True)
     expected_m_tokens = [
-        ["^", "<MASK>", "<MASK>", "O", ".", "<MASK>", "<MASK>", "c", "<SEP>", "C", "C", "<MASK>", ")", "C", "c", "c", "&"],
-        ["^", "<MASK>", "Br", "Cl", "C", "<MASK>", "<SEP>", "<MASK>", "C", "Cl", "<MASK>", "Cl", "&"],
-        ["^", "C", "(", "=", "O", ")", "C", "Br", "<SEP>", "<MASK>", "(", "=", "O", ")", "<MASK>", "Br", "&"]
+        ["^", "<MASK>", "<MASK>", "O", ".", "<MASK>", "<MASK>", "c", "<SEP>", "C", "<MASK>", "O", ".", "C", "c", "c", "&"],
+        ["^", "<MASK>", "<MASK>", "<MASK>", "C", "<MASK>", "<SEP>", "<MASK>", "C", "Cl", "<MASK>", "Cl", "&"],
+        ["^", "<MASK>", "(", "=", "<MASK>", "<MASK>", "C", "Br", "<SEP>", "<MASK>", "(", "=", "O", ")", "<MASK>", "Br", "&"]
     ]
     expected_tokens = [
         ["^", "C", "C", "O", ".", "C", "c", "c", "<SEP>", "C", "C", "O", ".", "C", "c", "c", "&"],

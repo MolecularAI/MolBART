@@ -145,7 +145,7 @@ def test_beam_calls_decode(tokeniser):
     decode_fn = MagicMock(side_effect=lambda ts, ps: torch.rand((ts.shape[0] + 1, batch_size, num_tokens)))
     sampler._sort_beams = MagicMock(return_value=(None, None))
 
-    mols, log_lhs = sampler.beam_decode(decode_fn, batch_size, 5)
+    mols, log_lhs = sampler.beam_decode(decode_fn, batch_size, k=5)
 
     expected_calls = ((max_seq_len - 2) * num_beams) + 1
     assert len(decode_fn.call_args_list) == expected_calls
@@ -174,7 +174,7 @@ def test_beam_chooses_correct_tokens(tokeniser):
     decode_fn = MagicMock(side_effect=ret_vals)
     sampler._sort_beams = MagicMock(return_value=(None, None))
 
-    mols, log_lhs = sampler.beam_decode(decode_fn, batch_size, num_beams)
+    mols, log_lhs = sampler.beam_decode(decode_fn, batch_size, k=num_beams)
 
     token_ids = tokeniser.convert_ids_to_tokens.call_args_list
     beam_1_token_ids = token_ids[0][0][0]
@@ -210,7 +210,7 @@ def test_beam_stops_at_end_token(tokeniser):
     decode_fn = MagicMock(side_effect=ret_vals)
     sampler._sort_beams = MagicMock(return_value=(None, None))
 
-    mols, log_lhs = sampler.beam_decode(decode_fn, batch_size, num_beams)
+    mols, log_lhs = sampler.beam_decode(decode_fn, batch_size, k=num_beams)
 
     token_ids = tokeniser.convert_ids_to_tokens.call_args_list
     beam_1_token_ids = token_ids[0][0][0]
@@ -246,7 +246,7 @@ def test_beam_lls(tokeniser):
     decode_fn = MagicMock(side_effect=ret_vals)
     sampler._sort_beams = MagicMock(return_value=(None, None))
 
-    mols, log_lhs = sampler.beam_decode(decode_fn, batch_size, num_beams)
+    mols, log_lhs = sampler.beam_decode(decode_fn, batch_size, k=num_beams)
 
     log_lhs = sampler._sort_beams.call_args_list[0][0][1][0]
     beam_1_lls = round(log_lhs[0], 2)
