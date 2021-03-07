@@ -1,5 +1,5 @@
+import os
 import argparse
-from pytorch_lightning import Trainer
 
 import molbart.util as util
 from molbart.decoder import DecodeSampler
@@ -81,6 +81,8 @@ def load_model(args, sampler, vocab_size, total_steps, pad_token_idx):
 
 
 def main(args):
+    util.seed_everything(73)
+
     print("Building tokeniser...")
     tokeniser = util.load_tokeniser(args.vocab_path, args.chem_token_start_idx)
     print("Finished tokeniser.")
@@ -91,6 +93,10 @@ def main(args):
 
     print("Building data module...")
     dm = util.build_reaction_datamodule(args, dataset, tokeniser)
+    num_available_cpus = len(os.sched_getaffinity(0))
+    num_workers = num_available_cpus // args.gpus
+    dm._num_workers = num_workers
+    print(f"Using {str(num_workers)} workers for data module.")
     print("Finished datamodule.")
 
     vocab_size = len(tokeniser)
@@ -147,6 +153,7 @@ if __name__ == "__main__":
     parser.add_argument("--train_tokens", type=int, default=DEFAULT_TRAIN_TOKENS)
     parser.add_argument("--num_buckets", type=int, default=DEFAULT_NUM_BUCKETS)
     parser.add_argument("--limit_val_batches", type=float, default=DEFAULT_LIMIT_VAL_BATCHES)
+    parser.add_argument("--gpus", type=int, default=util.DEFAULT_GPUS)
 
     args = parser.parse_args()
     main(args)
