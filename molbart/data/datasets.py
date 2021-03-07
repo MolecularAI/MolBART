@@ -254,16 +254,8 @@ class Chembl(MoleculeDataset):
         return train_idxs, val_idxs, test_idxs
 
 
-class Zinc(MoleculeDataset):
-    def __init__(self, data_path):
-        path = Path(data_path)
-
-        # If path is a directory then read every subfile
-        if path.is_dir():
-            df = self._read_dir_df(path)
-        else:
-            df = pd.read_csv(path)
-
+class ZincSlice(MoleculeDataset):
+    def __init__(self, df):
         smiles = df["smiles"].tolist()
         train_idxs, val_idxs, test_idxs = self._save_idxs(df)
 
@@ -274,18 +266,6 @@ class Zinc(MoleculeDataset):
             test_idxs=test_idxs,
             transform=lambda smi: Chem.MolFromSmiles(smi)
         )
-
-    def _read_dir_df(self, path):
-        # num_cpus = 4
-        # executor = ProcessPoolExecutor(num_cpus)
-        # files = [f for f in path.iterdir()]
-        # futures = [executor.submit(pd.read_csv, f) for f in files]
-        # dfs = [future.result() for future in futures]
-
-        dfs = [pd.read_csv(f) for f in path.iterdir()]
-
-        zinc_df = pd.concat(dfs, ignore_index=True, copy=False)
-        return zinc_df
 
     def _save_idxs(self, df):
         val_idxs = df.index[df["set"] == "val"].tolist()
@@ -299,6 +279,31 @@ class Zinc(MoleculeDataset):
         train_idxs = idxs - set(val_idxs).union(set(test_idxs))
 
         return train_idxs, val_idxs, test_idxs
+
+
+class Zinc(ZincSlice):
+    def __init__(self, data_path):
+        path = Path(data_path)
+
+        # If path is a directory then read every subfile
+        if path.is_dir():
+            df = self._read_dir_df(path)
+        else:
+            df = pd.read_csv(path)
+
+        super().__init__(df)
+
+    def _read_dir_df(self, path):
+        # num_cpus = 4
+        # executor = ProcessPoolExecutor(num_cpus)
+        # files = [f for f in path.iterdir()]
+        # futures = [executor.submit(pd.read_csv, f) for f in files]
+        # dfs = [future.result() for future in futures]
+
+        dfs = [pd.read_csv(f) for f in path.iterdir()]
+
+        zinc_df = pd.concat(dfs, ignore_index=True, copy=False)
+        return zinc_df
 
 
 class ConcatMoleculeDataset(MoleculeDataset):
