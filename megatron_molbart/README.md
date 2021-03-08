@@ -41,5 +41,5 @@ The `train_megatron.sh` bash script in the top level of the repository can be ru
 ```train-iters```: How many training iterations <br>
 ```save```: Output model checkpoint directory name <br>
 
-The default `train_megatron.sh` script in this repository runs the same architecture as the original MolBART model on 4 GPUs and a single node.
+The default `train_megatron.sh` script in this repository runs a 175 million parameter MolBART model on 4 GPUs and a single node on the ChEMBL dataset.
 
