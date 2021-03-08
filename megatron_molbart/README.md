@@ -1,8 +1,10 @@
 # Megatron MolBART
 
-This is a version of MolBART that uses NVIDIA's Megatron framework for model parallelism along with support for Multi-GPU and Multi-Node data parallelism using DeepSpeed.
+This is a version of MolBART that uses NVIDIA's Megatron framework for model parallelism along with support for Multi-GPU and Multi-Node data parallelism using DeepSpeed. Link to ChEMBL 27 dataset in CSV format: https://drive.google.com/file/d/17DKzuXmfmMP0XUInZrEdJ10sBxkehmzR/view?usp=sharing
 
 ## Installation
+
+Follow these steps in order:
 
 `conda create -c rdkit -n molbart rdkit` <br>
 `conda activate molbart` <br>
