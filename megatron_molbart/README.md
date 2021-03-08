@@ -4,8 +4,21 @@ This is a version of MolBART that uses NVIDIA's Megatron framework for model par
 
 ## Installation
 
-The project requires the `pysmilesutils` library to be installed (see README in pysmilesutils). MolBART also requires RDKit (although this should be installed as part of the installation procedure for pysmilesutils). The other requirements are listed in megatron_requirements.txt at the top level of this repository. Importantly, NVIDIA's Apex must be installed (follow the instructions on https://github.com/NVIDIA/apex). Also, DeepSpeed must be installed (```pip install deepspeed```). Last but not least, Megatron v1.1.5 must be installed as well. To do this, download the Megatron source compatible with DeepSpeed (https://github.com/microsoft/DeepSpeedExamples/tree/master/Megatron-LM-v1.1.5-3D_parallelism) and run ```python setup.py install```.
+`conda create -c rdkit -n molbart rdkit` <br>
+`conda activate molbart` <br>
+`pip install ../requirements.txt` (MolBART repo) <br>
+`pip install -e ..` (MolBART repo) <br>
+`pip install pybind11==2.6.2` <br>
+`pip install six==1.15.0` <br>
+`pip install regex` <br>
+`pip install deepspeed==0.3.10` <br>
+`cd apex; pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./` (Download NVIDIA apex source) <br>
+`cd pysmilesutils; python setup.py install` (Download pysmilesutils source) <br>
+`cd Megatron-LM-v1.1.5-3D_parallelism; python setup.py install` <br>
 
+After all of these steps, if you still get an import error when running train_megatron.sh involving amp_C, this will fix the issue:
+
+`pip uninstall apex; cd apex; pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./` <br>
 
 ## Code
 
@@ -41,5 +54,4 @@ The `train_megatron.sh` bash script in the top level of the repository can be ru
 ```train-iters```: How many training iterations <br>
 ```save```: Output model checkpoint directory name <br>
 
-The default `train_megatron.sh` script in this repository runs a 175 million parameter MolBART model on 4 GPUs and a single node on the ChEMBL dataset.
-
+The default `train_megatron.sh` script in this repository runs the original 12 million parameter MolBART model on 4 GPUs and a single node on the ChEMBL dataset.
