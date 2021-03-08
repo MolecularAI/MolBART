@@ -9,14 +9,16 @@ from molbart.util import DEFAULT_MAX_SEQ_LEN
 from molbart.util import REGEX
 from rdkit import Chem
 import numpy as np
-import pandas 
+import pandas
 from molbart.data.util import TokenSampler
+from megatron.data.samplers import DistributedBatchSampler
+from megatron import mpu
+import torch
 
 tokenizer = MolEncTokeniser.from_vocab_file(DEFAULT_VOCAB_PATH, REGEX,
-                DEFAULT_CHEM_TOKEN_START)
+        DEFAULT_CHEM_TOKEN_START)
 max_seq_len = 512
-train_tokens = 4096
-DEFAULT_NUM_BUCKETS = 12
+
 
 def check_seq_len(tokens, mask):
     """ Warn user and shorten sequence if the tokens are too long, otherwise return original
@@ -106,8 +108,14 @@ class MoleculeDataset(Dataset):
         if torch.is_tensor(idx):
             idx = idx.tolist()
         mol = self.mols[idx]
-        enc_smi = self.aug(mol)
-        dec_smi = self.aug(mol)
+        try:
+            enc_smi = self.aug(mol)
+        except:
+            enc_smi = mol
+        try:
+            dec_smi = self.aug(mol)
+        except:
+            dec_smi = mol
         output = {'encoder_smiles': enc_smi, 'decoder_smiles': dec_smi}
         return output
 
@@ -123,27 +131,29 @@ class MoleculeDataLoader(object):
         num_buckets=20,
         num_workers=32,
         ):
+
         self.df = pandas.read_csv(file_path)
         train_dataset = MoleculeDataset(self.df, split='train')
         val_dataset = MoleculeDataset(self.df, split='val')
         self.tokenizer = \
             MolEncTokeniser.from_vocab_file(DEFAULT_VOCAB_PATH, REGEX,
                 DEFAULT_CHEM_TOKEN_START)
-       
-        train_sampler = TokenSampler(
-            DEFAULT_NUM_BUCKETS,
-            train_dataset.lengths,
-            train_tokens,
-            shuffle=True
-        )
+
+        world_size = \
+            torch.distributed.get_world_size(group=mpu.get_data_parallel_group())
+        rank = \
+            torch.distributed.get_rank(group=mpu.get_data_parallel_group())
+        sampler = torch.utils.data.SequentialSampler(train_dataset)
+        batch_sampler = DistributedBatchSampler(sampler, batch_size,
+                True, rank, world_size)
 
         self.train_loader = torch.utils.data.DataLoader(train_dataset,
-                batch_sampler=train_sampler, num_workers=num_workers,
+                batch_sampler=batch_sampler, num_workers=num_workers,
                 pin_memory=True, collate_fn=collate_fn)
         self.val_loader = torch.utils.data.DataLoader(val_dataset,
-                num_workers=num_workers,
-                pin_memory=True, collate_fn=collate_fn)
+                num_workers=num_workers, pin_memory=True,
+                collate_fn=collate_fn)
 
     def get_data(self):
-        return self.train_loader, self.val_loader
+        return (self.train_loader, self.val_loader)
 

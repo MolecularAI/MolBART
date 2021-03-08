@@ -28,15 +28,15 @@ SYNCHRONIZE=true
 PROFILE=false
 
 # Megatron Model Parallelism
-mp_size=4
+mp_size=1
 # DeepSpeed Pipeline parallelism
 pp_size=0
 
 megatron_options=" \
         --model-parallel-size ${mp_size} \
         --pipe-parallel-size ${pp_size} \
-        --num-layers 4 \
-        --hidden-size 256 \
+        --num-layers 8 \
+        --hidden-size 768 \
         --num-attention-heads 8 \
         --seq-length 512 \
         --max-position-embeddings 512 \
@@ -46,18 +46,20 @@ megatron_options=" \
         --lr-decay-iters 320000 \
         --data-impl mmap \
         --distributed-backend nccl \
-        --lr 0.003 \
+        --lr 0.0001 \
         --lr-decay-style cosine \
+
         --min-lr 1.0e-5 \
         --weight-decay 0 \
         --clip-grad 1.0 \
         --warmup 0.01 \
         --checkpoint-activations \
         --log-interval 1 \
-        --save-interval 100 \
+        --save-interval 1000 \
         --eval-interval 100000 \
         --eval-iters 1000000 \
-        --save megatron_molbart_checkpoint
+        --save megatron_molbart_100m_checkpoint
+        --fp16
 "
 
 deepspeed_options=" \
