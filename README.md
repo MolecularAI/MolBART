@@ -1,11 +1,11 @@
-# MolBART
+# MolBART Megatron
 
 The MolBART project aims to pre-train a BART transformer language model [[1]](#1) on molecular SMILES strings [[2]](#2) by optimising a de-noising objective. We hypothesise that pre-training will lead to improved generalisation, performance, training speed and validity on downstream fine-tuned tasks. We intend to test the pre-trained model on downstream tasks such as reaction prediction, retrosynthetic prediction, molecular optimisation and molecular property prediction.
 
 
 ## Installation
 
-The project requires the `pysmilesutils` library to be installed (see README in pysmilesutils). MolBART also requires RDKit (although this should be installed as part of the installation procedure for pysmilesutils). Finally, the remaining project requirements can be installed with pip using `pip install -r requirements.txt`.
+The project requires the `pysmilesutils` library to be installed (see README in pysmilesutils). MolBART also requires RDKit (although this should be installed as part of the installation procedure for pysmilesutils). Finally, the remaining project requirements (for Megatron) can be installed with pip using `pip install -r megatron_requirements.txt`.
 
 
 ## Code
