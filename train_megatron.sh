@@ -35,8 +35,8 @@ pp_size=0
 megatron_options=" \
         --model-parallel-size ${mp_size} \
         --pipe-parallel-size ${pp_size} \
-        --num-layers 8 \
-        --hidden-size 768 \
+        --num-layers 4 \
+        --hidden-size 256 \
         --num-attention-heads 8 \
         --seq-length 512 \
         --max-position-embeddings 512 \
@@ -57,7 +57,7 @@ megatron_options=" \
         --log-interval 1 \
         --save-interval 1000 \
         --eval-interval 100000 \
-        --eval-iters 1000000 \
+        --eval-iters 10 \
         --save megatron_molbart_100m_checkpoint
         --fp16
 "
