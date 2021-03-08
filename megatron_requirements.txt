@@ -1,5 +1,8 @@
-deepspeed
-apex
-torch
+deepspeed==0.3.10
+pybind11==2.6.2
+apex==0.1
+six==1.15.0
+torch==1.7.1
+regex
 pandas
 numpy
