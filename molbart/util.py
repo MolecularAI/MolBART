@@ -1,3 +1,4 @@
+import os
 import math
 import torch
 import pickle
@@ -7,7 +8,7 @@ import pytorch_lightning as pl
 from pathlib import Path
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import TensorBoardLogger
-from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
+from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint, Callback
 
 from molbart.tokeniser import MolEncTokeniser
 from molbart.models.bart_fine_tune import ReactionBART
@@ -32,6 +33,41 @@ DEFAULT_GPUS = 1
 
 USE_GPU = True
 use_gpu = USE_GPU and torch.cuda.is_available()
+
+
+class StepCheckpoint(Callback):
+    def __init__(self, step_interval):
+        super().__init__()
+
+        if type(step_interval) != int:
+            raise TypeError(f"step_interval must be of type int, got type {type(step_interval)}")
+
+        self.step_interval = step_interval
+
+    def on_batch_end(self, trainer, model):
+        step = trainer.global_step
+        if step % self.step_interval == 0:
+            self._save_model(trainer, model, step)
+
+    def _save_model(self, trainer, model, step):
+        if trainer.logger is not None:
+            if trainer.weights_save_path != trainer.default_root_dir:
+                save_dir = trainer.weights_save_path
+            else:
+                save_dir = trainer.logger.save_dir or trainer.default_root_dir
+
+            version = (
+                trainer.logger.version
+                if isinstance(trainer.logger.version, str) else f"version_{trainer.logger.version}"
+            )
+            version, name = trainer.training_type_plugin.broadcast((version, trainer.logger.name))
+            ckpt_path = os.path.join(save_dir, str(name), version, "checkpoints")
+
+        else:
+            ckpt_path = os.path.join(trainer.weights_save_path, "checkpoints")
+
+        save_path = f"{ckpt_path}/step={str(step)}.ckpt"
+        trainer.save_checkpoint(save_path)
 
 
 def number_of_mols(data_path):
@@ -133,13 +169,13 @@ def build_molecule_datamodule(args, dataset, tokeniser):
     return dm
 
 
-def build_reaction_datamodule(args, dataset, tokeniser):
+def build_reaction_datamodule(args, dataset, tokeniser, forward=True):
     dm = FineTuneReactionDataModule(
         dataset,
         tokeniser,
         args.batch_size,
         DEFAULT_MAX_SEQ_LEN,
-        forward_pred=True,
+        forward_pred=forward,
         augment=args.augment,
         val_idxs=dataset.val_idxs,
         test_idxs=dataset.test_idxs,
@@ -156,17 +192,28 @@ def load_tokeniser(vocab_path, chem_token_start):
 
 def build_trainer(args):
     logger = TensorBoardLogger("tb_logs", name=args.model_type)
+    accelerator = "ddp" if args.gpus > 1 else None
+    plugins = ["ddp_sharded"] if args.gpus > 1 else None
+    replace_sampler_ddp = False if args.gpus > 1 else True
+
     lr_monitor = LearningRateMonitor(logging_interval="step")
     checkpoint_cb = ModelCheckpoint(monitor="val_molecular_accuracy", save_last=True)
-    accelerator = "ddp" if args.gpus > 1 else None
+    callbacks = [lr_monitor, checkpoint_cb]
+
+    # Zinc is so big we need to checkpoint more frequently than every epoch
+    # We should also run the validation set more frequently to observe the model's performance
+    val_check_interval = 1.0
+    if args.dataset == "zinc":
+        checkpoint_freq = 100000
+        intra_epoch_checkpoint = StepCheckpoint(checkpoint_freq)
+        callbacks.append(intra_epoch_checkpoint)
+        val_check_interval = checkpoint_freq
 
     print(f"Num gpus: {args.gpus}")
     print(f"Accelerator: {accelerator}")
 
     trainer = Trainer(
         accelerator=accelerator,
-        amp_backend="apex",
-        amp_level="01",
         logger=logger, 
         gpus=args.gpus, 
         min_epochs=args.epochs, 
@@ -174,8 +221,10 @@ def build_trainer(args):
         accumulate_grad_batches=args.acc_batches,
         gradient_clip_val=args.clip_grad,
         limit_val_batches=args.limit_val_batches,
-        callbacks=[lr_monitor, checkpoint_cb],
-        replace_sampler_ddp=False
+        callbacks=callbacks,
+        replace_sampler_ddp=replace_sampler_ddp,
+        plugins=plugins,
+        val_check_interval=val_check_interval
     )
     return trainer
 
