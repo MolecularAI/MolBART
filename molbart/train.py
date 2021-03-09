@@ -136,7 +136,7 @@ if __name__ == "__main__":
     parser.add_argument("--d_model", type=int, default=util.DEFAULT_D_MODEL)
     parser.add_argument("--num_layers", type=int, default=util.DEFAULT_NUM_LAYERS)
     parser.add_argument("--num_heads", type=int, default=util.DEFAULT_NUM_HEADS)
-    parser.add_argument("--d_feedforward", type=float, default=util.DEFAULT_D_FEEDFORWARD)
+    parser.add_argument("--d_feedforward", type=int, default=util.DEFAULT_D_FEEDFORWARD)
     parser.add_argument("--lr", type=float, default=DEFAULT_LR)
     parser.add_argument("--weight_decay", type=float, default=DEFAULT_WEIGHT_DECAY)
     parser.add_argument("--epochs", type=int, default=DEFAULT_EPOCHS)

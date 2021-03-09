@@ -1,7 +1,9 @@
 torch
 pytest
 pytest-order
-pytorch_lightning==1.1.0
+pytorch_lightning==1.2.1
 pandas
+numpy
 optuna
 OpenNMT-py
+fairscale

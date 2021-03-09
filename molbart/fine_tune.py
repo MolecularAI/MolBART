@@ -23,11 +23,6 @@ DEFAULT_LIMIT_VAL_BATCHES = 1.0
 
 
 def load_model(args, sampler, vocab_size, total_steps, pad_token_idx):
-    if args.model_type == "forward_prediction":
-        forward_pred = True
-    else:
-        raise ValueError(f"Unknown model type {args.model_type}")
-
     # These args don't affect the model directly but will be saved by lightning as hparams
     # Tensorboard doesn't like None so we need to convert to string
     augment = "None" if args.augment is None else args.augment
@@ -83,6 +78,13 @@ def load_model(args, sampler, vocab_size, total_steps, pad_token_idx):
 def main(args):
     util.seed_everything(73)
 
+    if args.model_type == "forward_prediction":
+        forward_pred = True
+    elif args.model_type == "backward_prediction":
+        forward_pred = False
+    else:
+        raise ValueError(f"Unknown model type {args.model_type}")
+
     print("Building tokeniser...")
     tokeniser = util.load_tokeniser(args.vocab_path, args.chem_token_start_idx)
     print("Finished tokeniser.")
@@ -92,7 +94,7 @@ def main(args):
     print("Finished dataset.")
 
     print("Building data module...")
-    dm = util.build_reaction_datamodule(args, dataset, tokeniser)
+    dm = util.build_reaction_datamodule(args, dataset, tokeniser, forward=forward_pred)
     num_available_cpus = len(os.sched_getaffinity(0))
     num_workers = num_available_cpus // args.gpus
     dm._num_workers = num_workers
@@ -119,10 +121,11 @@ def main(args):
     trainer.fit(model, dm)
     print("Finished training.")
 
-    print("Evaluating model...")
-    results = trainer.test(model, datamodule=dm)
-    util.print_results(args, results[0])
-    print("Finished evaluation.")
+    if args.gpus <= 1:
+        print("Evaluating model...")
+        results = trainer.test(model, datamodule=dm)
+        util.print_results(args, results[0])
+        print("Finished evaluation.")
 
     print("Printing unknown tokens...")
     tokeniser.print_unknown_tokens()

@@ -257,12 +257,16 @@ class MoleculeDataModule(_AbsDataModule):
         enc_tokens, enc_mask = self._check_seq_len(enc_tokens, enc_mask)
         dec_tokens, dec_mask = self._check_seq_len(dec_tokens, dec_mask)
 
+        # Ensure that the canonical form is used for evaluation
+        dec_mols = [Chem.MolFromSmiles(smi) for smi in dec_smiles]
+        canon_targets = [Chem.MolToSmiles(mol) for mol in dec_mols]
+
         token_output = {
             "encoder_tokens": enc_tokens,
             "encoder_pad_mask": enc_mask,
             "decoder_tokens": dec_tokens,
             "decoder_pad_mask": dec_mask,
-            "target_smiles": dec_smiles
+            "target_smiles": canon_targets
         }
 
         return token_output
@@ -304,18 +308,22 @@ class FineTuneReactionDataModule(_AbsDataModule):
         else:
             raise ValueError(f"Unknown value for augment, {augment}")
 
+        if forward_pred:
+            print("Training on forward prediction task.")
+        else:
+            print("Training on backward prediction task.")
+
         self.augment = augment
         self.aug = MolRandomizer() if augment is not None else None
         self.forward_pred = forward_pred
 
     def _collate(self, batch, train=True):
-        # TODO Allow both forward and backward prediction
-
         token_output = self._prepare_tokens(batch, train)
         reacts_tokens = token_output["reacts_tokens"]
         reacts_mask = token_output["reacts_mask"]
         prods_tokens = token_output["prods_tokens"]
         prods_mask = token_output["prods_mask"]
+        reacts_smiles = token_output["reactants_smiles"]
         prods_smiles = token_output["products_smiles"]
 
         reacts_token_ids = self.tokeniser.convert_tokens_to_ids(reacts_tokens)
@@ -326,15 +334,26 @@ class FineTuneReactionDataModule(_AbsDataModule):
         prods_token_ids = torch.tensor(prods_token_ids).transpose(0, 1)
         prods_pad_mask = torch.tensor(prods_mask, dtype=torch.bool).transpose(0, 1)
 
-        collate_output = {
-            "encoder_input": reacts_token_ids,
-            "encoder_pad_mask": reacts_pad_mask,
-            "decoder_input": prods_token_ids[:-1, :],
-            "decoder_pad_mask": prods_pad_mask[:-1, :],
-            "target": prods_token_ids.clone()[1:, :],
-            "target_pad_mask": prods_pad_mask.clone()[1:, :],
-            "target_smiles": prods_smiles
-        }
+        if self.forward_pred:
+            collate_output = {
+                "encoder_input": reacts_token_ids,
+                "encoder_pad_mask": reacts_pad_mask,
+                "decoder_input": prods_token_ids[:-1, :],
+                "decoder_pad_mask": prods_pad_mask[:-1, :],
+                "target": prods_token_ids.clone()[1:, :],
+                "target_pad_mask": prods_pad_mask.clone()[1:, :],
+                "target_smiles": prods_smiles
+            }
+        else:
+            collate_output = {
+                "encoder_input": prods_token_ids,
+                "encoder_pad_mask": prods_pad_mask,
+                "decoder_input": reacts_token_ids[:-1, :],
+                "decoder_pad_mask": reacts_pad_mask[:-1, :],
+                "target": reacts_token_ids.clone()[1:, :],
+                "target_pad_mask": reacts_pad_mask.clone()[1:, :],
+                "target_smiles": reacts_smiles
+            }
 
         return collate_output
 
@@ -379,6 +398,8 @@ class FineTuneReactionDataModule(_AbsDataModule):
         prods_tokens = prods_output["original_tokens"]
         prods_mask = prods_output["pad_masks"]
         prods_tokens, prods_mask = self._check_seq_len(prods_tokens, prods_mask)
+
+        # TODO When augmenting, ensure the canon form is used for evaluation
 
         token_output = {
             "reacts_tokens": reacts_tokens,
@@ -443,5 +464,7 @@ class FineTuneMolOptDataModule(_AbsDataModule):
 
     def _prepare_tokens(self, batch, train):
         # TODO
+
+        # TODO When augmenting, ensure the canon form is used for evaluation
 
         pass
