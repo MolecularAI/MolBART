@@ -1,6 +1,19 @@
 import re
+import torch
 import random
 from pathlib import Path
+
+
+DEFAULT_BEGIN_TOKEN = "^"
+DEFAULT_END_TOKEN = "&"
+DEFAULT_PAD_TOKEN = "<PAD>"
+DEFAULT_UNK_TOKEN = "?"
+DEFAULT_MASK_TOKEN = "<MASK>"
+DEFAULT_SEP_TOKEN = "<SEP>"
+DEFAULT_MASK_PROB = 0.15
+DEFAULT_SHOW_MASK_TOKEN_PROB = 1.0
+DEFAULT_MASK_SCHEME = "span"
+DEFAULT_SPAN_LAMBDA = 3.0
 
 
 class MolEncTokeniser:
@@ -9,14 +22,16 @@ class MolEncTokeniser:
         vocab,
         chem_token_idxs,
         prog,
-        begin_token="^",
-        end_token="&",
-        pad_token="<PAD>",
-        unk_token="?",
-        mask_token="<MASK>",
-        sep_token="<SEP>",
-        mask_prob=0.15,
-        show_mask_token_prob=1.0
+        begin_token=DEFAULT_BEGIN_TOKEN,
+        end_token=DEFAULT_END_TOKEN,
+        pad_token=DEFAULT_PAD_TOKEN,
+        unk_token=DEFAULT_UNK_TOKEN,
+        mask_token=DEFAULT_MASK_TOKEN,
+        sep_token=DEFAULT_SEP_TOKEN,
+        mask_prob=DEFAULT_MASK_PROB,
+        show_mask_token_prob=DEFAULT_SHOW_MASK_TOKEN_PROB,
+        mask_scheme=DEFAULT_MASK_SCHEME,
+        span_lambda=DEFAULT_SPAN_LAMBDA
     ):
         """ Initialise the tokeniser
 
@@ -32,6 +47,8 @@ class MolEncTokeniser:
             sep_token (str): Token to use when sepatating two sentences
             mask_prob (float): Probability of token being masked when masking is enabled
             show_mask_token_prob (float): Probability of a masked token being replaced with mask token
+            mask_scheme (str): Masking scheme used by the tokeniser when masking
+            span_lambda (float): Mean for poisson distribution when sampling a span of tokens
         """
 
         self.vocab = {t: i for i, t in enumerate(vocab)}
@@ -48,6 +65,8 @@ class MolEncTokeniser:
 
         self.mask_prob = mask_prob
         self.show_mask_token_prob = show_mask_token_prob
+        self.mask_scheme = mask_scheme
+        self.span_lambda = span_lambda
 
         self.unk_id = self.vocab[unk_token]
         self.unk_token_cnt = {}
@@ -63,8 +82,10 @@ class MolEncTokeniser:
         end_token_idx=3,
         mask_token_idx=4,
         sep_token_idx=5,
-        mask_prob=0.15,
-        show_mask_token_prob=1.0
+        mask_prob=DEFAULT_MASK_PROB,
+        show_mask_token_prob=DEFAULT_SHOW_MASK_TOKEN_PROB,
+        mask_scheme=DEFAULT_MASK_SCHEME,
+        span_lambda=DEFAULT_SPAN_LAMBDA
     ):
         """ Load the tokeniser object from a vocab file and regex
 
@@ -110,7 +131,9 @@ class MolEncTokeniser:
             mask_token=mask_token,
             sep_token=sep_token,
             mask_prob=mask_prob,
-            show_mask_token_prob=show_mask_token_prob
+            show_mask_token_prob=show_mask_token_prob,
+            mask_scheme=mask_scheme,
+            span_lambda=span_lambda
         )
         return tokeniser
 
@@ -119,14 +142,16 @@ class MolEncTokeniser:
         smiles,
         regex,
         extra_tokens=None,
-        begin_token="^",
-        end_token="&",
-        pad_token="<PAD>",
-        unk_token="?",
-        mask_token="<MASK>",
-        sep_token="<SEP>",
-        mask_prob=0.15,
-        show_mask_token_prob=1.0
+        begin_token=DEFAULT_BEGIN_TOKEN,
+        end_token=DEFAULT_END_TOKEN,
+        pad_token=DEFAULT_PAD_TOKEN,
+        unk_token=DEFAULT_UNK_TOKEN,
+        mask_token=DEFAULT_MASK_TOKEN,
+        sep_token=DEFAULT_SEP_TOKEN,
+        mask_prob=DEFAULT_MASK_PROB,
+        show_mask_token_prob=DEFAULT_SHOW_MASK_TOKEN_PROB,
+        mask_scheme=DEFAULT_MASK_SCHEME,
+        span_lambda=DEFAULT_SPAN_LAMBDA
     ):
         """ Build the tokeniser from smiles strings and a regex
 
@@ -173,7 +198,9 @@ class MolEncTokeniser:
             mask_token=mask_token,
             sep_token=sep_token,
             mask_prob=mask_prob,
-            show_mask_token_prob=show_mask_token_prob
+            show_mask_token_prob=show_mask_token_prob,
+            mask_scheme=mask_scheme,
+            span_lambda=span_lambda
         )
         return tokeniser
 
@@ -213,13 +240,13 @@ class MolEncTokeniser:
 
         output = {}
 
-        pad_masks = None
         if pad:
-            tokens, pad_masks = self._pad_seqs(tokens, self.pad_token)
-            m_tokens, _ = self._pad_seqs(m_tokens, self.pad_token)
+            tokens, orig_pad_masks = self._pad_seqs(tokens, self.pad_token)
+            m_tokens, masked_pad_masks = self._pad_seqs(m_tokens, self.pad_token)
             token_masks, _ = self._pad_seqs(token_masks, False)
             sent_masks, _ = self._pad_seqs(sent_masks, False) if sent_masks is not None else (None, None)
-            output["pad_masks"] = pad_masks
+            output["original_pad_masks"] = orig_pad_masks
+            output["masked_pad_masks"] = masked_pad_masks
 
         output["original_tokens"] = tokens
 
@@ -318,18 +345,53 @@ class MolEncTokeniser:
             mask = [[False] * len(ts) for ts in tokens]
             return tokens, mask
 
-        mask_bools = [True, False]
-        weights = [self.mask_prob, 1 - self.mask_prob]
-
         masked_tokens = []
         token_masks = []
+
         for ts in tokens:
-            token_mask = random.choices(mask_bools, weights=weights, k=len(ts))
-            masked = [self._mask_token(ts[i]) if m else ts[i] for i, m in enumerate(token_mask)]
+            if self.mask_scheme == "replace":
+                masked, token_mask = self._mask_replace(ts)
+            elif self.mask_scheme == "span":
+                masked, token_mask = self._mask_span(ts)
+            else:
+                raise ValueError(f"Unrecognised mask scheme: {self.mask_scheme}")
+
             masked_tokens.append(masked)
             token_masks.append(token_mask)
 
         return masked_tokens, token_masks
+
+    def _mask_replace(self, ts):
+        mask_bools = [True, False]
+        weights = [self.mask_prob, 1 - self.mask_prob]
+        token_mask = random.choices(mask_bools, weights=weights, k=len(ts))
+        masked = [self._mask_token(ts[i]) if m else ts[i] for i, m in enumerate(token_mask)]
+        return masked, token_mask
+
+    def _mask_span(self, ts):
+        curr_token = 0
+        masked = []
+        token_mask = []
+
+        mask_bools = [True, False]
+        weights = [self.mask_prob, 1 - self.mask_prob]
+        sampled_mask = random.choices(mask_bools, weights=weights, k=len(ts))
+
+        while curr_token < len(ts):
+            # If mask, sample from a poisson dist to get length of mask
+            if sampled_mask[curr_token]:
+                mask_len = torch.poisson(torch.tensor(self.span_lambda)).long().item()
+                masked.append(self.mask_token)
+                token_mask.append(True)
+                curr_token += mask_len
+
+            # Otherwise don't mask
+            else:
+                masked.append(ts[curr_token])
+                token_mask.append(False)
+                curr_token += 1
+
+        return masked, token_mask
 
     def _mask_token(self, token):
         rand = random.random()
