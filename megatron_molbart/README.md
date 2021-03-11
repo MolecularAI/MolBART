@@ -8,7 +8,7 @@ Follow these steps in order:
 
 `conda create -c rdkit -n molbart rdkit` <br>
 `conda activate molbart` <br>
-`pip install ../requirements.txt` (MolBART repo) <br>
+`pip install -r ../requirements.txt` (MolBART repo) <br>
 `pip install -e ..` (MolBART repo) <br>
 `pip install pybind11==2.6.2` <br>
 `pip install six==1.15.0` <br>

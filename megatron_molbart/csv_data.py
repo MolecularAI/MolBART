@@ -7,6 +7,7 @@ from molbart.util import DEFAULT_CHEM_TOKEN_START
 from molbart.util import DEFAULT_VOCAB_PATH
 from molbart.util import DEFAULT_MAX_SEQ_LEN
 from molbart.util import REGEX
+from molbart.util import load_tokeniser
 from rdkit import Chem
 import numpy as np
 import pandas
@@ -14,6 +15,8 @@ from molbart.data.util import TokenSampler
 from megatron.data.samplers import DistributedBatchSampler
 from megatron import mpu
 import torch
+from pathlib import Path
+import pandas as pd
 
 tokenizer = MolEncTokeniser.from_vocab_file(DEFAULT_VOCAB_PATH, REGEX,
         DEFAULT_CHEM_TOKEN_START)
@@ -83,14 +86,17 @@ class MoleculeDataset(Dataset):
 
     """Simple Molecule dataset that reads from a single DataFrame."""
 
-    def __init__(self, df, split='train'):
+    def __init__(self, df, split='train', zinc = False):
         """
         Args:
             df (pandas.DataFrame): DataFrame object with RDKit molecules and lengths.
         """
 
-        self.mols = df['canonical_smiles'].tolist()
-        self.lengths = df['lengths'].tolist()
+        if zinc:
+            self.mols = df['smiles'].tolist()
+        else:     
+            self.mols = df['canonical_smiles'].tolist()
+        
         self.aug = SMILESRandomizer()
         val_idxs = df.index[df['set'] == 'val'].tolist()
         test_idxs = df.index[df['set'] == 'test'].tolist()
@@ -99,7 +105,6 @@ class MoleculeDataset(Dataset):
         idx_map = {'train': train_idxs, 'val': val_idxs,
                    'test': test_idxs}
         self.mols = [self.mols[idx] for idx in idx_map[split]]
-        self.lengths = [self.lengths[idx] for idx in idx_map[split]]
 
     def __len__(self):
         return len(self.mols)
@@ -119,7 +124,6 @@ class MoleculeDataset(Dataset):
         output = {'encoder_smiles': enc_smi, 'decoder_smiles': dec_smi}
         return output
 
-
 class MoleculeDataLoader(object):
 
     """Loads data from a csv file containing molecules."""
@@ -129,15 +133,19 @@ class MoleculeDataLoader(object):
         file_path,
         batch_size=32,
         num_buckets=20,
-        num_workers=32,
+        num_workers=32
         ):
 
-        self.df = pandas.read_csv(file_path)
-        train_dataset = MoleculeDataset(self.df, split='train')
-        val_dataset = MoleculeDataset(self.df, split='val')
-        self.tokenizer = \
-            MolEncTokeniser.from_vocab_file(DEFAULT_VOCAB_PATH, REGEX,
-                DEFAULT_CHEM_TOKEN_START)
+        path = Path(file_path)
+        if path.is_dir():
+            self.df = self._read_dir_df(path)
+        else:
+            self.df = pd.read_csv(path)
+        #self.df = pandas.read_csv(file_path)
+        train_dataset = MoleculeDataset(self.df, split='train', zinc=True)
+        val_dataset = MoleculeDataset(self.df, split='val', zinc=True)
+        self.tokeniser = load_tokeniser(DEFAULT_VOCAB_PATH, DEFAULT_CHEM_TOKEN_START)
+
 
         world_size = \
             torch.distributed.get_world_size(group=mpu.get_data_parallel_group())
@@ -157,3 +165,9 @@ class MoleculeDataLoader(object):
     def get_data(self):
         return (self.train_loader, self.val_loader)
 
+    def _read_dir_df(self, path):
+
+        dfs = [pd.read_csv(f) for f in path.iterdir()]
+
+        zinc_df = pd.concat(dfs, ignore_index=True, copy=False)
+        return zinc_df
