@@ -39,7 +39,7 @@ torch.manual_seed(1)
 
 
 def build_tokeniser():
-    tokeniser = MolEncTokeniser.from_smiles(react_data + prod_data, regex)
+    tokeniser = MolEncTokeniser.from_smiles(react_data + prod_data, regex, mask_scheme="replace")
     return tokeniser
 
 
@@ -83,13 +83,13 @@ def test_bart_forward_shape():
 
     react_token_output = tokeniser.tokenise(react_data, mask=True, pad=True)
     react_tokens = react_token_output["masked_tokens"]
-    react_pad_mask = react_token_output["pad_masks"]
+    react_pad_mask = react_token_output["masked_pad_masks"]
     react_ids = torch.tensor(tokeniser.convert_tokens_to_ids(react_tokens)).T
     react_mask = torch.tensor(react_pad_mask).T
 
     prod_token_output = tokeniser.tokenise(prod_data, pad=True)
     prod_tokens = prod_token_output["original_tokens"]
-    prod_pad_mask = prod_token_output["pad_masks"]
+    prod_pad_mask = prod_token_output["original_pad_masks"]
     prod_ids = torch.tensor(tokeniser.convert_tokens_to_ids(prod_tokens)).T
     prod_mask = torch.tensor(prod_pad_mask).T
 
@@ -104,7 +104,7 @@ def test_bart_forward_shape():
     model_output = output["model_output"]
     token_output = output["token_output"]
 
-    exp_seq_len = 4  # From expetced tokenised length of prod data
+    exp_seq_len = 4  # From expected tokenised length of prod data
     exp_batch_size = len(prod_data)
     exp_dim = model_args["d_model"]
     exp_vocab_size = len(tokeniser)
@@ -121,7 +121,7 @@ def test_bart_encode_shape():
 
     react_token_output = tokeniser.tokenise(react_data, mask=True, pad=True)
     react_tokens = react_token_output["masked_tokens"]
-    react_pad_mask = react_token_output["pad_masks"]
+    react_pad_mask = react_token_output["masked_pad_masks"]
     react_ids = torch.tensor(tokeniser.convert_tokens_to_ids(react_tokens)).T
     react_mask = torch.tensor(react_pad_mask).T
 
@@ -132,7 +132,7 @@ def test_bart_encode_shape():
 
     output = model.encode(batch_input)
 
-    exp_seq_len = 9  # From expetced tokenised length of react data
+    exp_seq_len = 9  # From expected tokenised length of react data
     exp_batch_size = len(react_data)
     exp_dim = model_args["d_model"]
 
@@ -147,7 +147,7 @@ def test_bart_decode_shape():
 
     react_token_output = tokeniser.tokenise(react_data, mask=True, pad=True)
     react_tokens = react_token_output["masked_tokens"]
-    react_pad_mask = react_token_output["pad_masks"]
+    react_pad_mask = react_token_output["masked_pad_masks"]
     react_ids = torch.tensor(tokeniser.convert_tokens_to_ids(react_tokens)).T
     react_mask = torch.tensor(react_pad_mask).T
 
@@ -159,7 +159,7 @@ def test_bart_decode_shape():
 
     prod_token_output = tokeniser.tokenise(prod_data, pad=True)
     prod_tokens = prod_token_output["original_tokens"]
-    prod_pad_mask = prod_token_output["pad_masks"]
+    prod_pad_mask = prod_token_output["original_pad_masks"]
     prod_ids = torch.tensor(tokeniser.convert_tokens_to_ids(prod_tokens)).T
     prod_mask = torch.tensor(prod_pad_mask).T
 
@@ -171,7 +171,7 @@ def test_bart_decode_shape():
     }
     output = model.decode(batch_input)
 
-    exp_seq_len = 4  # From expetced tokenised length of prod data
+    exp_seq_len = 4  # From expected tokenised length of prod data
     exp_batch_size = len(react_data)
     exp_vocab_size = len(tokeniser)
 
@@ -186,7 +186,7 @@ def test_calc_char_acc():
 
     react_token_output = tokeniser.tokenise(react_data[1:], pad=True)
     react_tokens = react_token_output["original_tokens"]
-    react_pad_mask = react_token_output["pad_masks"]
+    react_pad_mask = react_token_output["original_pad_masks"]
     target_ids = torch.tensor(tokeniser.convert_tokens_to_ids(react_tokens)).T[1:, :]
     target_mask = torch.tensor(react_pad_mask).T[1:, :]
 

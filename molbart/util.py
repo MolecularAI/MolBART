@@ -198,6 +198,9 @@ def build_trainer(args):
 
     lr_monitor = LearningRateMonitor(logging_interval="step")
     checkpoint_cb = ModelCheckpoint(monitor="val_molecular_accuracy", save_last=True)
+    if args.gpus > 1:
+        checkpoint_cb = ModelCheckpoint(save_last=True)
+
     callbacks = [lr_monitor, checkpoint_cb]
 
     # Zinc is so big we need to checkpoint more frequently than every epoch
