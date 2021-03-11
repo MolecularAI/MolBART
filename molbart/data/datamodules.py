@@ -23,7 +23,8 @@ class _AbsDataModule(pl.LightningDataModule):
         num_buckets=None,
         val_idxs=None, 
         test_idxs=None,
-        split_perc=0.2
+        split_perc=0.2,
+        pin_memory=True
     ):
         super(_AbsDataModule, self).__init__()
 
@@ -48,6 +49,7 @@ class _AbsDataModule(pl.LightningDataModule):
         self.val_idxs = val_idxs
         self.test_idxs = test_idxs
         self.split_perc = split_perc
+        self.pin_memory = pin_memory
 
         self._num_workers = multiprocessing.cpu_count()
 
@@ -63,7 +65,8 @@ class _AbsDataModule(pl.LightningDataModule):
                 batch_size=self.batch_size,
                 num_workers=self._num_workers, 
                 collate_fn=self._collate,
-                shuffle=True
+                shuffle=True,
+                pin_memory=self.pin_memory
             )
             return loader
 
@@ -77,7 +80,8 @@ class _AbsDataModule(pl.LightningDataModule):
             self.train_dataset,
             batch_sampler=sampler,
             num_workers=self._num_workers,
-            collate_fn=self._collate
+            collate_fn=self._collate,
+            pin_memory=self.pin_memory
         )
         return loader
 
@@ -86,7 +90,8 @@ class _AbsDataModule(pl.LightningDataModule):
             self.val_dataset, 
             batch_size=self.batch_size,
             num_workers=self._num_workers, 
-            collate_fn=partial(self._collate, train=False)
+            collate_fn=partial(self._collate, train=False),
+            pin_memory=self.pin_memory
         )
         return loader
 
@@ -95,7 +100,8 @@ class _AbsDataModule(pl.LightningDataModule):
             self.test_dataset, 
             batch_size=self.batch_size,
             num_workers=self._num_workers, 
-            collate_fn=partial(self._collate, train=False)
+            collate_fn=partial(self._collate, train=False),
+            pin_memory=self.pin_memory
         )
         return loader
 
@@ -156,18 +162,20 @@ class MoleculeDataModule(_AbsDataModule):
         val_idxs: Optional[List[int]] = None,
         test_idxs: Optional[List[int]] = None,
         split_perc: Optional[float] = 0.2,
-        augment: Optional[bool] = True
+        augment: Optional[bool] = True,
+        pin_memory: Optional[bool] = True
     ):
         super(MoleculeDataModule, self).__init__(
             dataset,
             tokeniser,
             batch_size,
             max_seq_len,
-            train_token_batch_size,
-            num_buckets,
-            val_idxs, 
-            test_idxs,
-            split_perc
+            train_token_batch_size=train_token_batch_size,
+            num_buckets=num_buckets,
+            val_idxs=val_idxs, 
+            test_idxs=test_idxs,
+            split_perc=split_perc,
+            pin_memory=pin_memory
         )
 
         if augment:
@@ -244,15 +252,15 @@ class MoleculeDataModule(_AbsDataModule):
         if self.task == "aug":
             enc_token_output = self.tokeniser.tokenise(enc_smiles, pad=True)
             enc_tokens = enc_token_output["original_tokens"]
+            enc_mask = enc_token_output["original_pad_masks"]
         else:
             enc_token_output = self.tokeniser.tokenise(enc_smiles, mask=True, pad=True)
             enc_tokens = enc_token_output["masked_tokens"]
-
-        enc_mask = enc_token_output["pad_masks"]
+            enc_mask = enc_token_output["masked_pad_masks"]
 
         dec_token_output = self.tokeniser.tokenise(dec_smiles, pad=True)
         dec_tokens = dec_token_output["original_tokens"]
-        dec_mask = dec_token_output["pad_masks"]
+        dec_mask = dec_token_output["original_pad_masks"]
 
         enc_tokens, enc_mask = self._check_seq_len(enc_tokens, enc_mask)
         dec_tokens, dec_mask = self._check_seq_len(dec_tokens, dec_mask)
@@ -285,18 +293,20 @@ class FineTuneReactionDataModule(_AbsDataModule):
         val_idxs: Optional[List[int]] = None, 
         test_idxs: Optional[List[int]] = None,
         split_perc: Optional[float] = 0.2,
-        augment: Optional[str] = None
+        augment: Optional[str] = None,
+        pin_memory: Optional[bool] = True
     ):
-        super().__init__(
+        super(MoleculeDataModule, self).__init__(
             dataset,
             tokeniser,
             batch_size,
             max_seq_len,
-            train_token_batch_size,
-            num_buckets,
-            val_idxs, 
-            test_idxs,
-            split_perc
+            train_token_batch_size=train_token_batch_size,
+            num_buckets=num_buckets,
+            val_idxs=val_idxs, 
+            test_idxs=test_idxs,
+            split_perc=split_perc,
+            pin_memory=pin_memory
         )
 
         if augment is None:
@@ -392,11 +402,11 @@ class FineTuneReactionDataModule(_AbsDataModule):
         prods_output = self.tokeniser.tokenise(prods, pad=True)
 
         reacts_tokens = reacts_output["original_tokens"]
-        reacts_mask = reacts_output["pad_masks"]
+        reacts_mask = reacts_output["original_pad_masks"]
         reacts_tokens, reacts_mask = self._check_seq_len(reacts_tokens, reacts_mask)
 
         prods_tokens = prods_output["original_tokens"]
-        prods_mask = prods_output["pad_masks"]
+        prods_mask = prods_output["original_pad_masks"]
         prods_tokens, prods_mask = self._check_seq_len(prods_tokens, prods_mask)
 
         # TODO When augmenting, ensure the canon form is used for evaluation
@@ -424,6 +434,7 @@ class FineTuneMolOptDataModule(_AbsDataModule):
         test_idxs: Optional[List[int]] = None,
         split_perc: Optional[float] = 0.2
     ):
+        # TODO Use same init as above DMs
         super().__init__(
             dataset,
             tokeniser,
