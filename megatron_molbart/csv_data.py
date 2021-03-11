@@ -49,10 +49,10 @@ def collate_fn(batch):
             pad=True)
     dec_token_output = tokenizer.tokenise(decoder_smiles, pad=True)
 
-    enc_mask = enc_token_output['pad_masks']
+    enc_mask = enc_token_output['masked_pad_masks']
     enc_tokens = enc_token_output['masked_tokens']
     dec_tokens = dec_token_output['original_tokens']
-    dec_mask = dec_token_output['pad_masks']
+    dec_mask = dec_token_output['original_pad_masks']
 
     (enc_tokens, enc_mask) = check_seq_len(enc_tokens, enc_mask)
     (dec_tokens, dec_mask) = check_seq_len(dec_tokens, dec_mask)
