@@ -54,6 +54,8 @@ Each script can be run using `python -m molbart.<scipt_name> <args>`.
 
 See the ArgumentParser args in each file for more details on each argument.
 
+To run on multiple GPUs use the `--gpus <num>` argument for the train or fine tune scripts. This will run the script with Pytorch Lightning's distributed data parallel (DDP) processing. Validation will be disabled when using DDP to ensure the GPUs stay synchronised and stop possible deadlocks from occurring.
+
 
 ## References
 
