@@ -75,13 +75,26 @@ def test_mask_tokens_empty_mask():
 
 # Run tests which require random masking first so we get deterministic masking
 @pytest.mark.order(1)
-def test_mask_tokens_masking():
-    tokeniser = MolEncTokeniser.from_smiles(smiles_data, regex, mask_prob=0.4)
+def test_mask_tokens_replace():
+    tokeniser = MolEncTokeniser.from_smiles(smiles_data, regex, mask_prob=0.4, mask_scheme="replace")
     masked, token_mask = tokeniser._mask_tokens(example_tokens)
 
     expected_masks = [
         [True, False, False, True, False, False, False, False],
         [False, False, False, True, False, False, True]
+    ]
+
+    assert expected_masks == token_mask
+
+
+@pytest.mark.order(3)
+def test_mask_tokens_span():
+    tokeniser = MolEncTokeniser.from_smiles(smiles_data, regex, mask_prob=0.4)
+    masked, token_mask = tokeniser._mask_tokens(example_tokens)
+
+    expected_masks = [
+        [False, False, False, True, True, False, False, False],
+        [False, False, True, False, False, False]
     ]
 
     assert expected_masks == token_mask
@@ -126,8 +139,8 @@ def test_tokenise_two_sentences():
 
 
 @pytest.mark.order(2)
-def test_tokenise_mask():
-    tokeniser = MolEncTokeniser.from_smiles(smiles_data, regex, mask_prob=0.4)
+def test_tokenise_mask_replace():
+    tokeniser = MolEncTokeniser.from_smiles(smiles_data, regex, mask_prob=0.4, mask_scheme="replace")
     tokens = tokeniser.tokenise(smiles_data, sents2=smiles_data, mask=True)
     expected_m_tokens = [
         ["^", "<MASK>", "<MASK>", "O", ".", "<MASK>", "<MASK>", "c", "<SEP>", "C", "<MASK>", "O", ".", "C", "c", "c", "&"],
@@ -142,6 +155,56 @@ def test_tokenise_mask():
 
     assert expected_m_tokens == tokens["masked_tokens"]
     assert expected_tokens == tokens["original_tokens"]
+
+
+@pytest.mark.order(4)
+def test_tokenise_mask_span():
+    tokeniser = MolEncTokeniser.from_smiles(smiles_data, regex, mask_prob=0.4)
+    tokens = tokeniser.tokenise(smiles_data, sents2=smiles_data, mask=True)
+    expected_m_tokens = [
+        ["^", "<MASK>", "C", "c", "c", "<SEP>", "<MASK>", "C", "<MASK>", "&"],
+        ["^", "C", "C", "Cl", "C", "Cl", "<SEP>", "<MASK>", "Cl", "C", "Cl", "&"],
+        ["^", "<MASK>", "=", "<MASK>", "C", "<MASK>", "<SEP>", "C", "<MASK>", "=", "O", "<MASK>", "&"]
+    ]
+    expected_tokens = [
+        ["^", "C", "C", "O", ".", "C", "c", "c", "<SEP>", "C", "C", "O", ".", "C", "c", "c", "&"],
+        ["^", "C", "C", "Cl", "C", "Cl", "<SEP>", "C", "C", "Cl", "C", "Cl", "&"],
+        ["^", "C", "(", "=", "O", ")", "C", "Br", "<SEP>", "C", "(", "=", "O", ")", "C", "Br", "&"]
+    ]
+
+    assert expected_m_tokens == tokens["masked_tokens"]
+    assert expected_tokens == tokens["original_tokens"]
+    assert len(tokens["masked_tokens"]) == len(tokens["token_masks"])
+
+    for ts, tms in zip(tokens["masked_tokens"], tokens["token_masks"]):
+        assert len(ts) == len(tms)
+
+
+@pytest.mark.order(5)
+def test_tokenise_mask_span_pad():
+    tokeniser = MolEncTokeniser.from_smiles(smiles_data, regex, mask_prob=0.4)
+    tokens = tokeniser.tokenise(smiles_data, mask=True, pad=True)
+    expected_m_tokens = [
+        ["^", "C", "<MASK>", "<MASK>", "&"],
+        ["^", "C", "<MASK>", "&", "<PAD>"],
+        ["^", "<MASK>", "<MASK>", "<MASK>", "&"]
+    ]
+    expected_tokens = [
+        ["^", "C", "C", "O", ".", "C", "c", "c", "&"],
+        ["^", "C", "C", "Cl", "C", "Cl", "&", "<PAD>", "<PAD>"],
+        ["^", "C", "(", "=", "O", ")", "C", "Br", "&"]
+    ]
+
+    assert expected_m_tokens == tokens["masked_tokens"]
+    assert expected_tokens == tokens["original_tokens"]
+    assert len(tokens["masked_tokens"]) == len(tokens["token_masks"])
+    assert len(tokens["masked_tokens"]) == len(tokens["masked_pad_masks"])
+
+    for ts, tms in zip(tokens["masked_tokens"], tokens["token_masks"]):
+        assert len(ts) == len(tms)
+
+    for ts, pms in zip(tokens["masked_tokens"], tokens["masked_pad_masks"]):
+        assert len(ts) == len(pms)
 
 
 def test_tokenise_padding():
@@ -164,5 +227,5 @@ def test_tokenise_padding():
     ]
 
     assert expected_tokens == output["original_tokens"]
-    assert expected_pad_masks == output["pad_masks"]
+    assert expected_pad_masks == output["original_pad_masks"]
     assert expected_sent_masks == output["sentence_masks"]

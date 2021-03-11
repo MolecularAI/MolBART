@@ -10,6 +10,7 @@ from molbart.decoder import DecodeSampler
 DEFAULT_BATCH_SIZE = 32
 DEFAULT_ACC_BATCHES = 1
 DEFAULT_MASK_PROB = 0.15
+DEFAULT_MASK_SCHEME = "replace"
 DEFAULT_LR = 0.001
 DEFAULT_WEIGHT_DECAY = 0.0
 DEFAULT_EPOCHS = 20
@@ -75,6 +76,7 @@ def main(args):
     print("Building tokeniser...")
     tokeniser = util.load_tokeniser(args.vocab_path, args.chem_token_start_idx)
     tokeniser.mask_prob = args.mask_prob
+    tokeniser.mask_scheme = args.mask_scheme
     print("Finished tokeniser.")
 
     print("Reading dataset...")
@@ -109,8 +111,14 @@ def main(args):
     trainer = util.build_trainer(args)
     print("Finished trainer.")
 
-    print("Fitting data module to trainer")
-    trainer.fit(model, dm)
+    if args.gpus > 1:
+        print("Fitting train data loader to model")
+        train_dl = dm.train_dataloader()
+        trainer.fit(model, train_dataloader=train_dl)
+    else:
+        print("Fitting data module to model")
+        trainer.fit(model, dm)
+
     print("Finished training.")
 
     print("Printing unknown tokens...")
@@ -133,6 +141,7 @@ if __name__ == "__main__":
     parser.add_argument("--acc_batches", type=int, default=DEFAULT_ACC_BATCHES)
     parser.add_argument("--max_seq_len", type=int, default=util.DEFAULT_MAX_SEQ_LEN)
     parser.add_argument("--mask_prob", type=float, default=DEFAULT_MASK_PROB)
+    parser.add_argument("--mask_scheme", type=str, default=DEFAULT_MASK_SCHEME)
     parser.add_argument("--d_model", type=int, default=util.DEFAULT_D_MODEL)
     parser.add_argument("--num_layers", type=int, default=util.DEFAULT_NUM_LAYERS)
     parser.add_argument("--num_heads", type=int, default=util.DEFAULT_NUM_HEADS)
