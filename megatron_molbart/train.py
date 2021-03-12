@@ -369,7 +369,7 @@ def run_training(ckpt_dir='megatron_molbart_checkpoint'):
     path = os.path.dirname(os.path.realpath(__file__))
     # loader = MoleculeDataLoader(path + '/test_data/chembl_subset.csv',
     #                             batch_size=256, num_workers=32)
-    loader = MoleculeDataLoader('../../Zinc_csv_files',
+    loader = MoleculeDataLoader('../zinc_subset',
                                 batch_size=256, num_workers=32)
     (train_dataloader, val_dataloader) = loader.get_data()
     print_rank_0('Setting up model ...')
