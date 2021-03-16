@@ -26,7 +26,7 @@ class _AbsDataModule(pl.LightningDataModule):
         split_perc=0.2,
         pin_memory=True
     ):
-        super(_AbsDataModule, self).__init__()
+        super().__init__()
 
         if val_idxs is not None and test_idxs is not None:
             idxs_intersect = set(val_idxs).intersection(set(test_idxs))
@@ -165,7 +165,7 @@ class MoleculeDataModule(_AbsDataModule):
         augment: Optional[bool] = True,
         pin_memory: Optional[bool] = True
     ):
-        super(MoleculeDataModule, self).__init__(
+        super().__init__(
             dataset,
             tokeniser,
             batch_size,
@@ -185,7 +185,7 @@ class MoleculeDataModule(_AbsDataModule):
             print("No molecular augmentation.")
             self.aug = None
 
-        self.task = task
+        self.task = None if task == "None" else task
 
     def _collate(self, batch, train=True):
         token_output = self._prepare_tokens(batch, train)
@@ -222,10 +222,12 @@ class MoleculeDataModule(_AbsDataModule):
         else:
             encoder_mols = batch[:]
 
-        if self.task == "mask":
+        if self.task == "mask" or self.task is None:
             decoder_mols = encoder_mols[:]
-        else:
+        elif self.task == "mask_aug" or self.task == "aug":
             decoder_mols = self.aug(encoder_mols)
+        else:
+            raise ValueError(f"Unknown task: {self.task}")
 
         canonical = self.aug is None
         enc_smiles = []
@@ -249,14 +251,16 @@ class MoleculeDataModule(_AbsDataModule):
             enc_smiles.append(enc_smi)
             dec_smiles.append(dec_smi)
 
-        if self.task == "aug":
+        if self.task == "aug" or self.task is None:
             enc_token_output = self.tokeniser.tokenise(enc_smiles, pad=True)
             enc_tokens = enc_token_output["original_tokens"]
             enc_mask = enc_token_output["original_pad_masks"]
-        else:
+        elif self.task == "mask" or self.task == "mask_aug":
             enc_token_output = self.tokeniser.tokenise(enc_smiles, mask=True, pad=True)
             enc_tokens = enc_token_output["masked_tokens"]
             enc_mask = enc_token_output["masked_pad_masks"]
+        else:
+            raise ValueError(f"Unknown task: {self.task}")
 
         dec_token_output = self.tokeniser.tokenise(dec_smiles, pad=True)
         dec_tokens = dec_token_output["original_tokens"]
@@ -296,7 +300,7 @@ class FineTuneReactionDataModule(_AbsDataModule):
         augment: Optional[str] = None,
         pin_memory: Optional[bool] = True
     ):
-        super(MoleculeDataModule, self).__init__(
+        super().__init__(
             dataset,
             tokeniser,
             batch_size,
