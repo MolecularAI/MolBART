@@ -8,6 +8,7 @@ from functools import partial
 from molbart.models.util import (
     PreNormEncoderLayer,
     PreNormDecoderLayer,
+    FuncLR,
     # MaskedEncoderLayer
 )
 
