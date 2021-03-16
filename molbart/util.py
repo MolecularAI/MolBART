@@ -203,7 +203,7 @@ def build_trainer(args):
     amp_level = "O2"
     if args.gpus > 1:
         accelerator = "ddp"
-        plugins = ["ddp_sharded"]
+        # plugins = ["ddp_sharded"]
 
     # Zinc is so big we need to checkpoint more frequently than every epoch
     # We should also run the validation set more frequently to observe the model's performance
