@@ -8,29 +8,19 @@ from molbart.data.datamodules import FineTuneReactionDataModule
 
 
 DEFAULT_BATCH_SIZE = 32
+DEFAULT_TASK = "None"
+DEFAULT_GPUS = 1
+DEFAULT_AUGMENT = True
+DEFAULT_TRAIN_TOKENS = None
+DEFAULT_NUM_BUCKETS = None
 
 
-def build_datamodule(args, dataset, tokeniser):
-    dm = FineTuneReactionDataModule(
-        dataset,
-        tokeniser,
-        args.batch_size,
-        args.max_seq_len,
-        forward_pred=True,
-        val_idxs=dataset.val_idxs,
-        test_idxs=dataset.test_idxs
-    )
-    return dm
-
-
-def build_trainer(args):
-    gpus = 1 if util.use_gpu else None
-    precision = 32
-    logger = TensorBoardLogger("tb_logs", name="fine_tune_eval")
-    trainer = Trainer( 
-        gpus=gpus, 
-        precision=precision,
-        logger=logger
+def build_trainer(args, limit_test_batches=1.0):
+    logger = TensorBoardLogger("tb_logs", name=f"eval_{args.model_type}_{args.dataset}")
+    trainer = Trainer(
+        gpus=args.gpus,
+        logger=logger,
+        limit_test_batches=limit_test_batches
     )
     return trainer
 
@@ -44,19 +34,32 @@ def main(args):
     dataset = util.build_dataset(args.dataset, args.data_path)
     print("Finished dataset.")
 
+    if args.model_type in ["forward_prediction", "bart"]:
+        forward = True
+    elif args.model_type == "backward_prediction":
+        forward = False
+    else:
+        raise ValueError(f"Unknown model type: {args.model_type}")
+
     print("Building data module...")
-    dm = build_datamodule(args, dataset, tokeniser)
+    if args.dataset in ["chembl", "zinc"]:
+        dm = util.build_molecule_datamodule(args, dataset, tokeniser)
+    elif args.dataset in ["uspto_mit", "pande"]:
+        dm = util.build_reaction_datamodule(args, dataset, tokeniser, forward=forward)
     print("Finished datamodule.")
 
     sampler = DecodeSampler(tokeniser, args.max_seq_len)
-    pad_token_idx = tokeniser.vocab[tokeniser.pad_token]
 
     print("Loading model...")
-    model = util.load_eval_model(args, sampler, pad_token_idx)
+    model = util.load_bart(args, sampler)
     print("Finished model.")
 
     print("Building trainer...")
-    trainer = build_trainer(args)
+    limit_test_batches = 1.0
+    if args.dataset == "zinc":
+        limit_test_batches = 0.1
+
+    trainer = build_trainer(args, limit_test_batches=limit_test_batches)
     print("Finished trainer.")
 
     print("Evaluating model...")
@@ -76,12 +79,21 @@ if __name__ == "__main__":
     parser.add_argument("--data_path", type=str)
     parser.add_argument("--model_path", type=str)
     parser.add_argument("--dataset", type=str)
+    parser.add_argument("--model_type", type=str)
     parser.add_argument("--vocab_path", type=str, default=util.DEFAULT_VOCAB_PATH)
     parser.add_argument("--chem_token_start_idx", type=int, default=util.DEFAULT_CHEM_TOKEN_START)
 
     # Model args
     parser.add_argument("--batch_size", type=int, default=DEFAULT_BATCH_SIZE)
     parser.add_argument("--max_seq_len", type=int, default=util.DEFAULT_MAX_SEQ_LEN)
+    parser.add_argument("--task", type=str, default=DEFAULT_TASK)
+    parser.add_argument("--train_tokens", type=int, default=DEFAULT_TRAIN_TOKENS)
+    parser.add_argument("--num_buckets", type=int, default=DEFAULT_NUM_BUCKETS)
+    parser.add_argument("--gpus", type=int, default=DEFAULT_GPUS)
+
+    parser.add_argument("--augment", dest="augment", action="store_true")
+    parser.add_argument("--no_augment", dest="augment", action="store_false")
+    parser.set_defaults(augment=DEFAULT_AUGMENT)
 
     args = parser.parse_args()
     main(args)

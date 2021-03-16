@@ -11,7 +11,7 @@ from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint, Callback
 
 from molbart.tokeniser import MolEncTokeniser
-from molbart.models.bart_fine_tune import ReactionBART
+from molbart.models.pre_train import BARTModel
 from molbart.data.datasets import Chembl, Uspto50, UsptoMit, Zinc, ZincSlice
 from molbart.data.datamodules import MoleculeDataModule, FineTuneReactionDataModule
 
@@ -192,31 +192,35 @@ def load_tokeniser(vocab_path, chem_token_start):
 
 def build_trainer(args):
     logger = TensorBoardLogger("tb_logs", name=args.model_type)
-    accelerator = "ddp" if args.gpus > 1 else None
-    plugins = ["ddp_sharded"] if args.gpus > 1 else None
-    replace_sampler_ddp = False if args.gpus > 1 else True
-
     lr_monitor = LearningRateMonitor(logging_interval="step")
     checkpoint_cb = ModelCheckpoint(monitor="val_molecular_accuracy", save_last=True)
-    if args.gpus > 1:
-        checkpoint_cb = ModelCheckpoint(save_last=True)
-
     callbacks = [lr_monitor, checkpoint_cb]
+
+    # Use sharding for multi-GPU training, Apex mixed-precision for single GPU
+    plugins = None
+    accelerator = None
+    amp_backend = "native"
+    amp_level = "O2"
+    if args.gpus > 1:
+        accelerator = "ddp"
+        plugins = ["ddp_sharded"]
 
     # Zinc is so big we need to checkpoint more frequently than every epoch
     # We should also run the validation set more frequently to observe the model's performance
     val_check_interval = 1.0
     if args.dataset == "zinc":
-        checkpoint_freq = 100000
+        checkpoint_freq = 10000
         intra_epoch_checkpoint = StepCheckpoint(checkpoint_freq)
         callbacks.append(intra_epoch_checkpoint)
-        val_check_interval = checkpoint_freq
+        # val_check_interval = checkpoint_freq
 
     print(f"Num gpus: {args.gpus}")
     print(f"Accelerator: {accelerator}")
 
     trainer = Trainer(
         accelerator=accelerator,
+        amp_backend=amp_backend,
+        amp_level=amp_level,
         logger=logger, 
         gpus=args.gpus, 
         min_epochs=args.epochs, 
@@ -225,9 +229,9 @@ def build_trainer(args):
         gradient_clip_val=args.clip_grad,
         limit_val_batches=args.limit_val_batches,
         callbacks=callbacks,
-        replace_sampler_ddp=replace_sampler_ddp,
         plugins=plugins,
-        val_check_interval=val_check_interval
+        val_check_interval=val_check_interval,
+        precision=16
     )
     return trainer
 
@@ -236,11 +240,10 @@ def seed_everything(seed):
     pl.utilities.seed.seed_everything(seed)
 
 
-def load_eval_model(args, sampler, pad_token_idx):
-    model = ReactionBART.load_from_checkpoint(
+def load_bart(args, sampler):
+    model = BARTModel.load_from_checkpoint(
         args.model_path,
-        decode_sampler=sampler,
-        pad_token_idx=pad_token_idx
+        decode_sampler=sampler
     )
     model.eval()
     return model

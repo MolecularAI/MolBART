@@ -9,8 +9,8 @@ from molbart.decoder import DecodeSampler
 # Default training hyperparameters
 DEFAULT_BATCH_SIZE = 32
 DEFAULT_ACC_BATCHES = 1
-DEFAULT_MASK_PROB = 0.15
-DEFAULT_MASK_SCHEME = "replace"
+DEFAULT_MASK_PROB = 0.10
+DEFAULT_MASK_SCHEME = "span"
 DEFAULT_LR = 0.001
 DEFAULT_WEIGHT_DECAY = 0.0
 DEFAULT_EPOCHS = 20
@@ -18,6 +18,8 @@ DEFAULT_GRAD_CLIP = 1.0
 DEFAULT_TRAIN_TOKENS = None
 DEFAULT_NUM_BUCKETS = 12
 DEFAULT_LIMIT_VAL_BATCHES = 1.0
+DEFAULT_SCHEDULE = "cycle"
+DEFAULT_WARM_UP_STEPS = 8000
 DEFAULT_TASK = "mask_aug"
 DEFAULT_AUGMENT = True
 
@@ -55,7 +57,9 @@ def build_model(args, sampler, vocab_size, total_steps, pad_token_idx):
             args.activation,
             total_steps,
             args.max_seq_len,
-            util.DEFAULT_DROPOUT,
+            schedule=args.schedule,
+            warm_up_steps=args.warm_up_steps,
+            dropout=util.DEFAULT_DROPOUT,
             **extra_args
         )
     else:
@@ -80,12 +84,14 @@ def main(args):
     print("Finished tokeniser.")
 
     print("Reading dataset...")
-    if args.dataset == "zinc" and args.gpus > 1:
-        local_rank = int(os.environ.get("LOCAL_RANK", 0))
-        print(f"Reading dataset slice using local rank {str(local_rank)}")
-        dataset = util.read_zinc_slice(args.data_path, local_rank, args.gpus, args.batch_size)
-    else:
-        dataset = util.build_dataset(args.dataset, args.data_path)
+    # if args.dataset == "zinc" and args.gpus > 1:
+    #     local_rank = int(os.environ.get("LOCAL_RANK", 0))
+    #     print(f"Reading dataset slice using local rank {str(local_rank)}")
+    #     dataset = util.read_zinc_slice(args.data_path, local_rank, args.gpus, args.batch_size)
+    # else:
+    #     dataset = util.build_dataset(args.dataset, args.data_path)
+
+    dataset = util.build_dataset(args.dataset, args.data_path)
     print("Finished dataset.")
 
     print("Building data module...")
@@ -156,6 +162,8 @@ if __name__ == "__main__":
     parser.add_argument("--limit_val_batches", type=float, default=DEFAULT_LIMIT_VAL_BATCHES)
     parser.add_argument("--gpus", type=int, default=util.DEFAULT_GPUS)
     parser.add_argument("--task", type=str, default=DEFAULT_TASK)
+    parser.add_argument("--schedule", type=str, default=DEFAULT_SCHEDULE)
+    parser.add_argument("--warm_up_steps", type=int, default=DEFAULT_WARM_UP_STEPS)
 
     parser.add_argument("--augment", dest="augment", action="store_true")
     parser.add_argument("--no_augment", dest="augment", action="store_false")

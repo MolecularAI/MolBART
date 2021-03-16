@@ -4,7 +4,6 @@ import argparse
 import molbart.util as util
 from molbart.decoder import DecodeSampler
 from molbart.models.pre_train import BARTModel
-from molbart.models.bart_fine_tune import ReactionBART
 
 
 # Default training hyperparameters
@@ -41,7 +40,7 @@ def load_model(args, sampler, vocab_size, total_steps, pad_token_idx):
 
     # If no model is given, use random init
     if args.model_path in ["none", "None"]:
-        model = ReactionBART(
+        model = BARTModel(
             sampler,
             pad_token_idx,
             vocab_size,
@@ -54,13 +53,13 @@ def load_model(args, sampler, vocab_size, total_steps, pad_token_idx):
             util.DEFAULT_ACTIVATION,
             total_steps,
             util.DEFAULT_MAX_SEQ_LEN,
-            args.schedule,
-            util.DEFAULT_DROPOUT,
-            args.warm_up_steps,
+            schedule=args.schedule,
+            dropout=util.DEFAULT_DROPOUT,
+            warm_up_steps=args.warm_up_steps,
             **extra_args
         )
     else:
-        model = ReactionBART.load_from_checkpoint(
+        model = BARTModel.load_from_checkpoint(
             args.model_path,
             decode_sampler=sampler,
             pad_token_idx=pad_token_idx,
