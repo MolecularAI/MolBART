@@ -117,14 +117,8 @@ def main(args):
     trainer = util.build_trainer(args)
     print("Finished trainer.")
 
-    if args.gpus > 1:
-        print("Fitting train data loader to model")
-        train_dl = dm.train_dataloader()
-        trainer.fit(model, train_dataloader=train_dl)
-    else:
-        print("Fitting data module to model")
-        trainer.fit(model, dm)
-
+    print("Fitting data module to model")
+    trainer.fit(model, dm)
     print("Finished training.")
 
     print("Printing unknown tokens...")
