@@ -4,7 +4,7 @@ MASTER_PORT=6000
 NNODES=1
 NODE_RANK=0
 #export dataset_path=$1
-export megatron_config_path = $1
+export megatron_config_path=$1
 
 script_path=$(realpath $0)
 script_dir=$(dirname $script_path)
