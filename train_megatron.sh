@@ -4,11 +4,20 @@ MASTER_PORT=6000
 NNODES=1
 NODE_RANK=0
 #export dataset_path=$1
+export megatron_config_path = $1
 
 script_path=$(realpath $0)
 script_dir=$(dirname $script_path)
 config_json="$script_dir/megatron_molbart/ds_config.json"
-megatron_config="$script_dir/megatron_molbart/megatron_config.sh"
+#megatron_config=$1
+
+if [ -z "$megatron_config_path" ]
+then
+      megatron_config="$script_dir/megatron_molbart/megatron_config.sh"
+else
+      megatron_config=$megatron_config_path
+fi
+#"
 source $megatron_config
 GPUS_PER_NODE=${n_gpus}
 WORLD_SIZE=$(($GPUS_PER_NODE*$NNODES))
