@@ -25,4 +25,4 @@ export log_interval=1
 export save_interval=1000
 export eval_interval=100000
 export eval_iters=10
-export addr_megatron=localhost
+export master_addr=localhost

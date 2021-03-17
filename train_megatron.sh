@@ -1,5 +1,5 @@
 # Change for multinode config
-MASTER_ADDR=localhost
+
 MASTER_PORT=6000
 NNODES=1
 NODE_RANK=0
@@ -19,6 +19,7 @@ else
 fi
 #"
 source $megatron_config
+MASTER_ADDR=$master_addr
 GPUS_PER_NODE=${n_gpus}
 WORLD_SIZE=$(($GPUS_PER_NODE*$NNODES))
 export DLWS_NUM_WORKER=${NNODES}
