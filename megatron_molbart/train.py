@@ -24,6 +24,7 @@ from molbart.models.pre_train import BARTModel
 import random
 from deepspeed.utils import RepeatingLoader
 import os
+import argparse
 
 tokenizer = MolEncTokeniser.from_vocab_file(DEFAULT_VOCAB_PATH, REGEX,
         DEFAULT_CHEM_TOKEN_START)
@@ -365,11 +366,11 @@ def train(
 def run_training(ckpt_dir='megatron_molbart_checkpoint'):
     initialize_megatron()
     args = get_args()
-    print_rank_0('Loading ChEMBL dataset ...')
+    print_rank_0('Loading dataset(s) ...')
     path = os.path.dirname(os.path.realpath(__file__))
     # loader = MoleculeDataLoader(path + '/test_data/chembl_subset.csv',
     #                             batch_size=256, num_workers=32)
-    loader = MoleculeDataLoader('../zinc_subset',
+    loader = MoleculeDataLoader(args.dataset_path,
                                 batch_size=256, num_workers=32)
     (train_dataloader, val_dataloader) = loader.get_data()
     print_rank_0('Setting up model ...')
@@ -402,4 +403,3 @@ def load_model():
 
 if __name__ == '__main__':
     run_training(ckpt_dir=None)
-

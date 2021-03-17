@@ -44,7 +44,8 @@ def parse_args(extra_args_provider=None, defaults={},
     parser = _add_realm_args(parser)
     parser = _add_zero_args(parser)
     parser = _add_activation_checkpoint_args(parser)
-
+    # Hassan: custom function added by me
+    parser = _add_dataset_path(parser)
     # Custom arguments.
     if extra_args_provider is not None:
         parser = extra_args_provider(parser)
@@ -535,4 +536,10 @@ def _add_activation_checkpoint_args(parser):
                        help='does a synchronize at the beginning and end of each checkpointed layer.')
     group.add_argument('--profile-backward', action='store_true',
                        help='Enables backward pass profiling for checkpointed layers.')
+    return parser
+
+# Hassan: This is a custom function that I have added
+def _add_dataset_path(parser):
+    group = parser.add_argument_group('dataset path')
+    group.add_argument('--dataset_path', type=str, default=None)
     return parser

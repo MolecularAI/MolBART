@@ -1,17 +1,20 @@
-GPUS_PER_NODE=4
 # Change for multinode config
 MASTER_ADDR=localhost
 MASTER_PORT=6000
 NNODES=1
 NODE_RANK=0
-WORLD_SIZE=$(($GPUS_PER_NODE*$NNODES))
-
-export DLWS_NUM_WORKER=${NNODES}
-export DLWS_NUM_GPU_PER_WORKER=${GPUS_PER_NODE}
+#export dataset_path=$1
 
 script_path=$(realpath $0)
 script_dir=$(dirname $script_path)
 config_json="$script_dir/megatron_molbart/ds_config.json"
+megatron_config="$script_dir/megatron_molbart/megatron_config.sh"
+source $megatron_config
+GPUS_PER_NODE=${n_gpus}
+WORLD_SIZE=$(($GPUS_PER_NODE*$NNODES))
+export DLWS_NUM_WORKER=${NNODES}
+export DLWS_NUM_GPU_PER_WORKER=${GPUS_PER_NODE}
+
 
 #ZeRO Configs
 stage=1
@@ -28,36 +31,37 @@ SYNCHRONIZE=true
 PROFILE=false
 
 # Megatron Model Parallelism
-mp_size=1
+#mp_size=1
 # DeepSpeed Pipeline parallelism
-pp_size=0
+#pp_size=0
 
 megatron_options=" \
         --model-parallel-size ${mp_size} \
         --pipe-parallel-size ${pp_size} \
-        --num-layers 4 \
-        --hidden-size 256 \
-        --num-attention-heads 8 \
-        --seq-length 512 \
-        --max-position-embeddings 512 \
-        --batch-size 320 \
-        --gas 16 \
-        --train-iters 320000 \
-        --lr-decay-iters 320000 \
-        --data-impl mmap \
-        --distributed-backend nccl \
-        --lr 0.0001 \
-        --lr-decay-style cosine \
+        --dataset_path ${dataset_path} \
+        --num-layers ${num_layers} \
+        --hidden-size ${hidden_size} \
+        --num-attention-heads ${num_attention_heads} \
+        --seq-length ${seq_length} \
+        --max-position-embeddings ${max_position_embeddings} \
+        --batch-size ${batch_size} \
+        --gas ${gas}\
+        --train-iters ${train_iters} \
+        --lr-decay-iters ${lr_decay_iters} \
+        --data-impl ${data_impl} \
+        --distributed-backend ${distributed_backend} \
+        --lr ${lr} \
+        --lr-decay-style ${lr_decay_style} \
 
-        --min-lr 1.0e-5 \
-        --weight-decay 0 \
-        --clip-grad 1.0 \
-        --warmup 0.01 \
+        --min-lr ${min_lr} \
+        --weight-decay ${weight_decay} \
+        --clip-grad ${clip_grad} \
+        --warmup ${warmup} \
         --checkpoint-activations \
-        --log-interval 1 \
-        --save-interval 1000 \
-        --eval-interval 100000 \
-        --eval-iters 10 \
+        --log-interval ${log_interval} \
+        --save-interval ${save_interval} \
+        --eval-interval ${eval_interval} \
+        --eval-iters ${eval_iters} \
         --save megatron_molbart_100m_checkpoint
         --fp16
 "
@@ -110,8 +114,8 @@ chkp_opt="${chkp_opt} \
 fi
 
 full_options="${megatron_options} ${deepspeed_options} ${chkp_opt}"
-
-run_cmd="deepspeed --num_nodes ${DLWS_NUM_WORKER} --num_gpus ${DLWS_NUM_GPU_PER_WORKER} megatron_molbart/train.py $@ ${full_options}"
+#run_cmd="deepspeed --num_nodes ${DLWS_NUM_WORKER} --num_gpus ${DLWS_NUM_GPU_PER_WORKER} megatron_molbart/train.py $@ ${full_options}"
+run_cmd="deepspeed --num_nodes ${DLWS_NUM_WORKER} --num_gpus ${DLWS_NUM_GPU_PER_WORKER} megatron_molbart/train.py ${full_options}"
 echo ${run_cmd}
 eval ${run_cmd}
 
