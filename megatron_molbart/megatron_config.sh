@@ -26,3 +26,4 @@ export save_interval=1000
 export eval_interval=100000
 export eval_iters=10
 export master_addr=localhost
+export gradient_accumulation_steps=1

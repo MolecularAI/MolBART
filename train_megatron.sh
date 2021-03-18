@@ -26,6 +26,8 @@ WORLD_SIZE=$(($GPUS_PER_NODE*$NNODES))
 export DLWS_NUM_WORKER=${NNODES}
 export DLWS_NUM_GPU_PER_WORKER=${GPUS_PER_NODE}
 
+run_python_config="python deepspeed_config.py --batch_size ${batch_size} --gradient_accumulation_steps ${gradient_accumulation_steps} --world_size ${WORLD_SIZE}"
+eval ${run_python_config}
 
 #ZeRO Configs
 stage=1
