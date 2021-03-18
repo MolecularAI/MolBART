@@ -75,7 +75,7 @@ megatron_options=" \
         --save-interval ${save_interval} \
         --eval-interval ${eval_interval} \
         --eval-iters ${eval_iters} \
-        --save megatron_molbart_100m_checkpoint
+        --save ${checkpoint_directory}
         --fp16
 "
 

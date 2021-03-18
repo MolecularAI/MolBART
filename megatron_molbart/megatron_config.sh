@@ -27,3 +27,4 @@ export eval_interval=100000
 export eval_iters=10
 export master_addr=localhost
 export gradient_accumulation_steps=1
+export checkpoint_directory="megatron_molbart_checkpoint"

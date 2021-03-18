@@ -402,4 +402,4 @@ def load_model():
 
 
 if __name__ == '__main__':
-    run_training(ckpt_dir=None)
+    run_training(ckpt_dir=args.checkpoint_dir)
