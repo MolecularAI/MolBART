@@ -376,7 +376,7 @@ def run_training(ckpt_dir='megatron_molbart_checkpoint'):
     print_rank_0('Setting up model ...')
     (model, optimizer, lr_scheduler) = setup_model_and_optimizer(args)
     if ckpt_dir is not None:
-        model.load_checkpoint(ckpt_dir)
+        model.load_checkpoint(args.save)
     print_rank_0('Starting training ...')
     train_dataloader = RepeatingLoader(train_dataloader)
     val_dataloader = RepeatingLoader(val_dataloader)
@@ -402,5 +402,4 @@ def load_model():
 
 
 if __name__ == '__main__':
-    args = get_args
-    run_training(ckpt_dir=args.save)
+    run_training(ckpt_dir=None)
