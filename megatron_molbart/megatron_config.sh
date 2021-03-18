@@ -1,3 +1,4 @@
+#!/bin/bash
 export n_gpus=4
 export mp_size=1
 export pp_size=0
