@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # Change for multinode config
-
-export MASTER_PORT=$2 #6000
+export MASTER_ADDR=$2
+export MASTER_PORT=6000
 
 if [ -z "$MASTER_PORT" ]
 then
