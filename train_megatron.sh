@@ -8,7 +8,7 @@ if [ -z "$MASTER_PORT" ]
 then
       MASTER_PORT=6000
 else
-      MASTER_PORT= $MASTER_PORT
+      MASTER_PORT=$MASTER_PORT
 fi
 
 export NNODES=$SLURM_JOB_NUM_NODES
@@ -26,7 +26,7 @@ if [ -z "$NODE_RANK" ]
 then
       NODE_RANK=0
 else
-      NODE_RANK= $SLURM_NODEID
+      NODE_RANK=$SLURM_NODEID
 fi
 #export dataset_path=$1
 export megatron_config_path=$1
