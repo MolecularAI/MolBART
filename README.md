@@ -5,7 +5,12 @@ The MolBART project aims to pre-train a BART transformer language model [[1]](#1
 
 ## Installation
 
-The project requires the `pysmilesutils` library to be installed (see README in pysmilesutils). MolBART also requires RDKit (although this should be installed as part of the installation procedure for pysmilesutils). Finally, the remaining project requirements can be installed with pip using `pip install -r requirements.txt`.
+Firstly, Apex and pysmilesutils must be downloaded, then the project dependencies can be installed as follows:
+- `conda create --name molbart rdkit -c rdkit`
+- `conda install pytorch==1.8.0 torchvision cudatoolkit==11.1 -c pytorch`
+- `conda install gcc_linux-64 gxx_linux-64 mpi4py`
+- `pip install requirements.txt`
+- `cd ../pysmilesutils && python setup.py install`
 
 
 ## Code

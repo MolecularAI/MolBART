@@ -4,7 +4,6 @@ import argparse
 import molbart.util as util
 from molbart.decoder import DecodeSampler
 from molbart.models.pre_train import BARTModel
-from molbart.models.bart_fine_tune import ReactionBART
 
 
 # Default training hyperparameters
@@ -15,7 +14,7 @@ DEFAULT_WEIGHT_DECAY = 0.0
 DEFAULT_EPOCHS = 100
 DEFAULT_GRAD_CLIP = 1.0
 DEFAULT_SCHEDULE = "cycle"
-DEFAULT_AUGMENT = None
+DEFAULT_AUGMENT = "None"
 DEFAULT_WARM_UP_STEPS = 8000
 DEFAULT_TRAIN_TOKENS = None
 DEFAULT_NUM_BUCKETS = 24
@@ -25,7 +24,6 @@ DEFAULT_LIMIT_VAL_BATCHES = 1.0
 def load_model(args, sampler, vocab_size, total_steps, pad_token_idx):
     # These args don't affect the model directly but will be saved by lightning as hparams
     # Tensorboard doesn't like None so we need to convert to string
-    augment = "None" if args.augment is None else args.augment
     train_tokens = "None" if args.train_tokens is None else args.train_tokens
     num_buckets = "None" if args.num_buckets is None else args.num_buckets
     extra_args = {
@@ -41,7 +39,7 @@ def load_model(args, sampler, vocab_size, total_steps, pad_token_idx):
 
     # If no model is given, use random init
     if args.model_path in ["none", "None"]:
-        model = ReactionBART(
+        model = BARTModel(
             sampler,
             pad_token_idx,
             vocab_size,
@@ -54,13 +52,13 @@ def load_model(args, sampler, vocab_size, total_steps, pad_token_idx):
             util.DEFAULT_ACTIVATION,
             total_steps,
             util.DEFAULT_MAX_SEQ_LEN,
-            args.schedule,
-            util.DEFAULT_DROPOUT,
-            args.warm_up_steps,
+            schedule=args.schedule,
+            dropout=util.DEFAULT_DROPOUT,
+            warm_up_steps=args.warm_up_steps,
             **extra_args
         )
     else:
-        model = ReactionBART.load_from_checkpoint(
+        model = BARTModel.load_from_checkpoint(
             args.model_path,
             decode_sampler=sampler,
             pad_token_idx=pad_token_idx,
@@ -117,14 +115,8 @@ def main(args):
     trainer = util.build_trainer(args)
     print("Finished trainer.")
 
-    if args.gpus > 1:
-        print("Fitting train data loader to model")
-        train_dl = dm.train_dataloader()
-        trainer.fit(model, train_dataloader=train_dl)
-    else:
-        print("Fitting data module to model")
-        trainer.fit(model, datamodule=dm)
-
+    print("Fitting data module to model")
+    trainer.fit(model, datamodule=dm)
     print("Finished training.")
 
     if args.gpus <= 1:
@@ -148,6 +140,8 @@ if __name__ == "__main__":
     parser.add_argument("--dataset", type=str)
     parser.add_argument("--vocab_path", type=str, default=util.DEFAULT_VOCAB_PATH)
     parser.add_argument("--chem_token_start_idx", type=int, default=util.DEFAULT_CHEM_TOKEN_START)
+    parser.add_argument("--log_dir", type=str, default=util.DEFAULT_LOG_DIR)
+    parser.add_argument("--deepspeed_config_path", type=str, default=util.DEFAULT_DEEPSPEED_CONFIG_PATH)
 
     # Model and training args
     parser.add_argument("--batch_size", type=int, default=DEFAULT_BATCH_SIZE)
@@ -163,6 +157,7 @@ if __name__ == "__main__":
     parser.add_argument("--num_buckets", type=int, default=DEFAULT_NUM_BUCKETS)
     parser.add_argument("--limit_val_batches", type=float, default=DEFAULT_LIMIT_VAL_BATCHES)
     parser.add_argument("--gpus", type=int, default=util.DEFAULT_GPUS)
+    parser.add_argument("--num_nodes", type=int, default=util.DEFAULT_NUM_NODES)
 
     args = parser.parse_args()
     main(args)

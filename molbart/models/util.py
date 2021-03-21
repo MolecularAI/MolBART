@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from torch.optim.lr_scheduler import LambdaLR
-from onmt.modules import MultiHeadedAttention
+# from onmt.modules import MultiHeadedAttention
 
 
 class FuncLR(LambdaLR):
@@ -54,43 +54,43 @@ class PreNormDecoderLayer(nn.TransformerDecoderLayer):
         return out
 
 
-class MaskedEncoderLayer(nn.TransformerEncoderLayer):
-    def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1, activation="relu"):
-        # Copied from pytorch implementation, but use OpenNMT MultiHeadedAttention
+# class MaskedEncoderLayer(nn.TransformerEncoderLayer):
+#     def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1, activation="relu"):
+#         # Copied from pytorch implementation, but use OpenNMT MultiHeadedAttention
 
-        super().__init__(
-            d_model,
-            nhead,
-            dim_feedforward=dim_feedforward,
-            dropout=dropout,
-            activation=activation
-        )
-        self.self_attn = MultiHeadedAttention(nhead, d_model, dropout=dropout)
+#         super().__init__(
+#             d_model,
+#             nhead,
+#             dim_feedforward=dim_feedforward,
+#             dropout=dropout,
+#             activation=activation
+#         )
+#         self.self_attn = MultiHeadedAttention(nhead, d_model, dropout=dropout)
 
-    def forward(self, src, src_mask=None, src_key_padding_mask=None):
-        """ Pass input through encoder layer
+#     def forward(self, src, src_mask=None, src_key_padding_mask=None):
+#         """ Pass input through encoder layer
 
-        Args:
-            src (torch.Tensor): Src tensor of shape (seq_len, batch_size, d_model)
-            src_mask (torch.Tensor): Attention mask of shape (batch_size, seq_len, seq_len)
-            src_key_padding_mask (torch.Tensor): Padding mask of shape (batch_size, seq_len)
+#         Args:
+#             src (torch.Tensor): Src tensor of shape (seq_len, batch_size, d_model)
+#             src_mask (torch.Tensor): Attention mask of shape (batch_size, seq_len, seq_len)
+#             src_key_padding_mask (torch.Tensor): Padding mask of shape (batch_size, seq_len)
 
-        Returns:
-            (torch.Tensor): Layer output of shape (seq_len_ batch_size, d_model)
-        """
+#         Returns:
+#             (torch.Tensor): Layer output of shape (seq_len_ batch_size, d_model)
+#         """
 
-        pad_mask = src_key_padding_mask.transpose(0, 1).unsqueeze(1)
-        att_mask = torch.gt(src_mask + pad_mask, 0)
+#         pad_mask = src_key_padding_mask.transpose(0, 1).unsqueeze(1)
+#         att_mask = torch.gt(src_mask + pad_mask, 0)
 
-        # Self attention block
-        att = self.norm1(src)
-        att = att.transpose(0, 1)
-        att = self.self_attn(att, att, att, mask=att_mask, attn_type="self")[0]
-        att = att.transpose(0, 1)
-        att = src + self.dropout1(att)
+#         # Self attention block
+#         att = self.norm1(src)
+#         att = att.transpose(0, 1)
+#         att = self.self_attn(att, att, att, mask=att_mask, attn_type="self")[0]
+#         att = att.transpose(0, 1)
+#         att = src + self.dropout1(att)
 
-        # Feedforward block
-        out = self.norm2(att)
-        out = self.linear2(self.dropout(self.activation(self.linear1(out))))
-        out = att + self.dropout2(out)
-        return out
+#         # Feedforward block
+#         out = self.norm2(att)
+#         out = self.linear2(self.dropout(self.activation(self.linear1(out))))
+#         out = att + self.dropout2(out)
+#         return out

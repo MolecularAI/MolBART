@@ -7,7 +7,6 @@ from pathlib import Path
 import molbart.util as util
 from molbart.decoder import DecodeSampler
 from molbart.models.pre_train import BARTModel
-from molbart.models.bart_fine_tune import ReactionBART
 from molbart.data.datasets import MoleculeDataset
 from molbart.data.datamodules import MoleculeDataModule
 
@@ -97,7 +96,7 @@ def main(args):
     pad_token_idx = tokeniser.vocab[tokeniser.pad_token]
 
     print("Loading model...")
-    model = util.load_eval_model(args, sampler, pad_token_idx)
+    model = util.load_bart(args, sampler)
     model.num_beams = args.num_beams
     sampler.max_seq_len = model.max_seq_len
     print("Finished model.")

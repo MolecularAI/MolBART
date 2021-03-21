@@ -6,10 +6,12 @@ class DecodeSampler:
     def __init__(
         self,
         tokeniser,
-        max_seq_len
+        max_seq_len,
+        length_norm=0.8
     ):
         self.tokeniser = tokeniser
         self.max_seq_len = max_seq_len
+        self.length_norm = length_norm
 
         assert max_seq_len > 1, f"Max sequence must be at least 2, got {max_seq_len}"
 
@@ -188,14 +190,18 @@ class DecodeSampler:
         # Apply current seqs to model to get a distribution over next tokens
         # new_lls is a tensor of shape [batch_size, vocab_size * num_beams]
         new_lls = [self._beam_step(decode_fn, t, m, lls) for t, m, lls in zip(ts, ms, lls_list)]
-        _, vocab_size = new_lls[0].shape
+        norm_lls = [self._norm_length(lls, mask) for lls, mask in zip(new_lls, ms)]
+
+        _, vocab_size = tuple(norm_lls[0].shape)
         new_lls = torch.cat(new_lls, dim=1)
+        norm_lls = torch.cat(norm_lls, dim=1)
 
         # Keep lists (of length num_beams) of tensors of shape [batch_size]
-        top_lls, top_idxs = torch.topk(new_lls, num_beams, dim=1)
+        top_lls, top_idxs = torch.topk(norm_lls, num_beams, dim=1)
         new_ids_list = list((top_idxs % vocab_size).T)
         beam_idxs_list = list((top_idxs // vocab_size).T)
-        top_lls = list(top_lls.T)
+        top_lls = [new_lls[b_idx, idx] for b_idx, idx in enumerate(list(top_idxs))]
+        top_lls = torch.stack(top_lls).T
 
         beam_complete = []
         new_ts_list = []
@@ -266,11 +272,11 @@ class DecodeSampler:
         next_token_lls = output_dist[-1, :, :].cpu()
 
         # Create a vector from which only a pad token can be sampled 
-        # And use this vector in the output for sequences which are complete
         _, vocab_size = tuple(next_token_lls.shape)
         complete_seq_ll = torch.ones((1, vocab_size)) * self.bad_token_ll
         complete_seq_ll[:, self.pad_token_id] = 0.0
 
+        # Use this vector in the output for sequences which are complete
         is_end_token = tokens[-1, :] == self.end_token_id
         is_pad_token = tokens[-1, :] == self.pad_token_id
         ll_mask = torch.logical_or(is_end_token, is_pad_token).cpu().unsqueeze(1)
@@ -278,6 +284,22 @@ class DecodeSampler:
 
         seq_lls = (lls + masked_lls.T).T
         return seq_lls
+
+    def _norm_length(self, seq_lls, mask):
+        """ Normalise log-likelihoods using the length of the constructed sequence
+
+        Args:
+            seq_lls (torch.Tensor): Tensor of shape [batch_size, vocab_size] containing log likelihoods for seqs so far
+            mask (torch.Tensor): BoolTensor of shape [seq_len, batch_size] containing the padding mask
+
+        Returns:
+            norm_lls (torch.Tensor): Tensor of shape [batch_size, vocab_size]
+        """
+
+        seq_lengths = (~mask).sum(dim=0)
+        norm = torch.pow(5 + seq_lengths, self.length_norm) / pow(6, self.length_norm)
+        norm_lls = (seq_lls.T / norm.cpu()).T
+        return norm_lls
 
     @staticmethod
     def _transpose_list(l):

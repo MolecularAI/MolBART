@@ -178,7 +178,7 @@ def test_bart_decode_shape():
     assert tuple(output.shape) == (exp_seq_len, exp_batch_size, exp_vocab_size)
 
 
-def test_calc_char_acc():
+def test_calc_token_acc():
     tokeniser = build_tokeniser()
     pad_token_idx = tokeniser.vocab[tokeniser.pad_token]
     sampler = DecodeSampler(tokeniser, model_args["max_seq_len"])
@@ -236,7 +236,7 @@ def test_calc_char_acc():
     model_output = {
         "token_output": token_output
     }
-    token_acc = model._calc_char_acc(batch_input, model_output)
+    token_acc = model._calc_token_acc(batch_input, model_output)
 
     exp_token_acc = (3 + 6) / (4 + 8)
 
