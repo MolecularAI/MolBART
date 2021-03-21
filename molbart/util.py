@@ -1,5 +1,6 @@
 import os
 import math
+import json
 import torch
 import pickle
 import numpy as np
@@ -7,11 +8,12 @@ import pandas as pd
 import pytorch_lightning as pl
 from pathlib import Path
 from pytorch_lightning import Trainer
+from pytorch_lightning.plugins import DeepSpeedPlugin
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint, Callback
 
 from molbart.tokeniser import MolEncTokeniser
-from molbart.models.bart_fine_tune import ReactionBART
+from molbart.models.pre_train import BARTModel
 from molbart.data.datasets import Chembl, Uspto50, UsptoMit, Zinc, ZincSlice
 from molbart.data.datamodules import MoleculeDataModule, FineTuneReactionDataModule
 
@@ -25,11 +27,14 @@ DEFAULT_ACTIVATION = "gelu"
 DEFAULT_MAX_SEQ_LEN = 512
 DEFAULT_DROPOUT = 0.1
 
+DEFAULT_DEEPSPEED_CONFIG_PATH = "ds_config.json"
+DEFAULT_LOG_DIR = "tb_logs"
 DEFAULT_VOCAB_PATH = "bart_vocab.txt"
 DEFAULT_CHEM_TOKEN_START = 272
 REGEX = "\[[^\]]+]|Br?|Cl?|N|O|S|P|F|I|b|c|n|o|s|p|\(|\)|\.|=|#|-|\+|\\\\|\/|:|~|@|\?|>|\*|\$|\%[0-9]{2}|[0-9]"
 
 DEFAULT_GPUS = 1
+DEFAULT_NUM_NODES = 1
 
 USE_GPU = True
 use_gpu = USE_GPU and torch.cuda.is_available()
@@ -68,6 +73,21 @@ class StepCheckpoint(Callback):
 
         save_path = f"{ckpt_path}/step={str(step)}.ckpt"
         trainer.save_checkpoint(save_path)
+
+
+class OptLRMonitor(Callback):
+    def __init__(self):
+        super().__init__()
+
+    def on_train_batch_start(self, trainer, *args, **kwargs):
+        # Only support one optimizer
+        opt = trainer.optimizers[0]
+
+        # Only support one param group
+        stats = {
+            "lr":  opt.param_groups[0]["lr"]
+        }
+        trainer.logger.log_metrics(stats, step=trainer.global_step)
 
 
 def number_of_mols(data_path):
@@ -153,7 +173,8 @@ def build_dataset(dataset_type, data_path):
     return dataset
 
 
-def build_molecule_datamodule(args, dataset, tokeniser):
+def build_molecule_datamodule(args, dataset, tokeniser, augment=None):
+    augment = args.augment if augment is None else augment
     dm = MoleculeDataModule(
         dataset, 
         tokeniser,
@@ -164,19 +185,20 @@ def build_molecule_datamodule(args, dataset, tokeniser):
         num_buckets=args.num_buckets,
         val_idxs=dataset.val_idxs,
         test_idxs=dataset.test_idxs,
-        augment=args.augment
+        augment=augment
     )
     return dm
 
 
-def build_reaction_datamodule(args, dataset, tokeniser, forward=True):
+def build_reaction_datamodule(args, dataset, tokeniser, forward=True, augment=None):
+    augment = args.augment if augment is None else augment
     dm = FineTuneReactionDataModule(
         dataset,
         tokeniser,
         args.batch_size,
         DEFAULT_MAX_SEQ_LEN,
         forward_pred=forward,
-        augment=args.augment,
+        augment=augment,
         val_idxs=dataset.val_idxs,
         test_idxs=dataset.test_idxs,
         train_token_batch_size=args.train_tokens,
@@ -191,15 +213,16 @@ def load_tokeniser(vocab_path, chem_token_start):
 
 
 def build_trainer(args):
-    logger = TensorBoardLogger("tb_logs", name=args.model_type)
-    accelerator = "ddp" if args.gpus > 1 else None
-    plugins = ["ddp_sharded"] if args.gpus > 1 else None
-    replace_sampler_ddp = False if args.gpus > 1 else True
-
+    logger = TensorBoardLogger(args.log_dir, name=args.model_type)
     lr_monitor = LearningRateMonitor(logging_interval="step")
     checkpoint_cb = ModelCheckpoint(monitor="val_molecular_accuracy", save_last=True)
+
+    plugins = None
+    accelerator = None
     if args.gpus > 1:
-        checkpoint_cb = ModelCheckpoint(save_last=True)
+        accelerator = "ddp"
+        lr_monitor = OptLRMonitor()
+        plugins = [DeepSpeedPlugin(config=args.deepspeed_config_path)]
 
     callbacks = [lr_monitor, checkpoint_cb]
 
@@ -207,27 +230,28 @@ def build_trainer(args):
     # We should also run the validation set more frequently to observe the model's performance
     val_check_interval = 1.0
     if args.dataset == "zinc":
-        checkpoint_freq = 100000
+        checkpoint_freq = 50000
         intra_epoch_checkpoint = StepCheckpoint(checkpoint_freq)
         callbacks.append(intra_epoch_checkpoint)
-        val_check_interval = checkpoint_freq
+        # val_check_interval = checkpoint_freq
 
     print(f"Num gpus: {args.gpus}")
     print(f"Accelerator: {accelerator}")
 
     trainer = Trainer(
         accelerator=accelerator,
-        logger=logger, 
-        gpus=args.gpus, 
-        min_epochs=args.epochs, 
+        logger=logger,
+        gpus=args.gpus,
+        num_nodes=args.num_nodes,
+        min_epochs=args.epochs,
         max_epochs=args.epochs,
         accumulate_grad_batches=args.acc_batches,
         gradient_clip_val=args.clip_grad,
         limit_val_batches=args.limit_val_batches,
         callbacks=callbacks,
-        replace_sampler_ddp=replace_sampler_ddp,
         plugins=plugins,
-        val_check_interval=val_check_interval
+        val_check_interval=val_check_interval,
+        precision=16
     )
     return trainer
 
@@ -236,11 +260,10 @@ def seed_everything(seed):
     pl.utilities.seed.seed_everything(seed)
 
 
-def load_eval_model(args, sampler, pad_token_idx):
-    model = ReactionBART.load_from_checkpoint(
+def load_bart(args, sampler):
+    model = BARTModel.load_from_checkpoint(
         args.model_path,
-        decode_sampler=sampler,
-        pad_token_idx=pad_token_idx
+        decode_sampler=sampler
     )
     model.eval()
     return model
