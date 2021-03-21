@@ -8,7 +8,8 @@ from functools import partial
 from molbart.models.util import (
     PreNormEncoderLayer,
     PreNormDecoderLayer,
-    MaskedEncoderLayer
+    FuncLR,
+    # MaskedEncoderLayer
 )
 
 
@@ -81,7 +82,7 @@ class _AbsTransformerModel(pl.LightningModule):
         model_output = self.forward(batch)
         loss = self._calc_loss(batch, model_output)
 
-        self.log("train_loss", loss.item(), on_step=True, logger=True, sync_dist=True)
+        self.log("train_loss", loss, on_step=True, logger=True, sync_dist=True)
 
         return loss
 
@@ -121,7 +122,7 @@ class _AbsTransformerModel(pl.LightningModule):
         encs = torch.stack(encs)
         return encs
 
-    def _generate_square_subsequent_mask(self, sz):
+    def _generate_square_subsequent_mask(self, sz, device="cpu"):
         """ 
         Method copied from Pytorch nn.Transformer.
         Generate a square mask for the sequence. The masked positions are filled with float('-inf').
@@ -134,7 +135,7 @@ class _AbsTransformerModel(pl.LightningModule):
             torch.Tensor: Square autoregressive mask for decode 
         """
 
-        mask = (torch.triu(torch.ones(sz, sz)) == 1).transpose(0, 1)
+        mask = (torch.triu(torch.ones((sz, sz), device=device)) == 1).transpose(0, 1)
         mask = mask.float().masked_fill(mask == 0, float('-inf')).masked_fill(mask == 1, float(0.0))
         return mask
 
@@ -165,126 +166,127 @@ class _AbsTransformerModel(pl.LightningModule):
 # ----------------------------------------------------------------------------------------------------------
 
 
-class BERTModel(_AbsTransformerModel):
-    def __init__(
-        self,
-        decode_sampler,
-        pad_token_idx,
-        vocab_size, 
-        d_model,
-        num_layers, 
-        num_heads,
-        d_feedforward,
-        lr,
-        weight_decay,
-        activation,
-        num_steps,
-        max_seq_len,
-        dropout=0.1,
-        **kwargs
-    ):
-        super().__init__(
-            pad_token_idx,
-            vocab_size, 
-            d_model,
-            num_layers, 
-            num_heads,
-            d_feedforward,
-            lr,
-            weight_decay,
-            activation,
-            num_steps,
-            max_seq_len,
-            dropout,
-            **kwargs
-        )
+# TODO BERTModel requires OpenNMT, need to find way to add this to requirements (and solve dependency issue)
+# class BERTModel(_AbsTransformerModel):
+#     def __init__(
+#         self,
+#         decode_sampler,
+#         pad_token_idx,
+#         vocab_size, 
+#         d_model,
+#         num_layers, 
+#         num_heads,
+#         d_feedforward,
+#         lr,
+#         weight_decay,
+#         activation,
+#         num_steps,
+#         max_seq_len,
+#         dropout=0.1,
+#         **kwargs
+#     ):
+#         super().__init__(
+#             pad_token_idx,
+#             vocab_size, 
+#             d_model,
+#             num_layers, 
+#             num_heads,
+#             d_feedforward,
+#             lr,
+#             weight_decay,
+#             activation,
+#             num_steps,
+#             max_seq_len,
+#             dropout,
+#             **kwargs
+#         )
 
-        self.sampler = decode_sampler
-        self.val_sampling_alg = "greedy"
-        self.num_beams = 5
+#         self.sampler = decode_sampler
+#         self.val_sampling_alg = "greedy"
+#         self.num_beams = 5
 
-        enc_norm = nn.LayerNorm(d_model)
-        enc_layer = MaskedEncoderLayer(d_model, num_heads, d_feedforward, dropout, activation)
-        self.encoder = nn.TransformerEncoder(enc_layer, num_layers, norm=enc_norm)
+#         enc_norm = nn.LayerNorm(d_model)
+#         enc_layer = MaskedEncoderLayer(d_model, num_heads, d_feedforward, dropout, activation)
+#         self.encoder = nn.TransformerEncoder(enc_layer, num_layers, norm=enc_norm)
 
-        self.token_fc = nn.Linear(d_model, vocab_size)
-        self.loss_fn = nn.CrossEntropyLoss(reduction="none", ignore_index=pad_token_idx)
-        self.log_softmax = nn.LogSoftmax(dim=2)
+#         self.token_fc = nn.Linear(d_model, vocab_size)
+#         self.loss_fn = nn.CrossEntropyLoss(reduction="none", ignore_index=pad_token_idx)
+#         self.log_softmax = nn.LogSoftmax(dim=2)
 
-        self._init_params()
+#         self._init_params()
 
-    def forward(self, x):
-        """ Apply SMILES strings to model
+#     def forward(self, x):
+#         """ Apply SMILES strings to model
 
-        The dictionary returned will be passed to other functions, so its contents are fairly flexible,
-        except that it must contain the key "token_output" which is the output of the model 
-        (possibly after any fully connected layers) for each token.
+#         The dictionary returned will be passed to other functions, so its contents are fairly flexible,
+#         except that it must contain the key "token_output" which is the output of the model 
+#         (possibly after any fully connected layers) for each token.
 
-        Arg:
-            x (dict {
-                "input": tensor of token_ids of shape (src_len, batch_size),
-                "attention_mask": 1/0 mask tensor of shape (batch_size, src_len, src_len),
-            }):
+#         Arg:
+#             x (dict {
+#                 "input": tensor of token_ids of shape (src_len, batch_size),
+#                 "attention_mask": 1/0 mask tensor of shape (batch_size, src_len, src_len),
+#             }):
 
-        Returns:
-            Output from model (dict containing key "token_output" and "model_output")
-        """
+#         Returns:
+#             Output from model (dict containing key "token_output" and "model_output")
+#         """
 
-        model_input = x["input"]
-        att_mask = x["attention_mask"]
+#         model_input = x["input"]
+#         att_mask = x["attention_mask"]
 
-        embs = self._construct_input(model_input)
+#         embs = self._construct_input(model_input)
 
-        model_output = self.encoder(embs, src_mask=att_mask)
-        token_output = self.token_fc(model_output)
+#         model_output = self.encoder(embs, src_mask=att_mask)
+#         token_output = self.token_fc(model_output)
 
-        output = {
-            "model_output": model_output,
-            "token_output": token_output
-        }
+#         output = {
+#             "model_output": model_output,
+#             "token_output": token_output
+#         }
 
-        return output
+#         return output
 
-    def _calc_loss(self, batch_input, model_output):
-        """ Calculate the loss for the model
+#     def _calc_loss(self, batch_input, model_output):
+#         """ Calculate the loss for the model
 
-        Args:
-            batch_input (dict): Input given to model,
-            model_output (dict): Output from model
+#         Args:
+#             batch_input (dict): Input given to model,
+#             model_output (dict): Output from model
 
-        Returns:
-            loss (singleton tensor)
-        """
+#         Returns:
+#             loss (singleton tensor)
+#         """
 
-        raise NotImplementedError()
+#         raise NotImplementedError()
 
-    # TODO Move to data module
-    def _build_mask(self, sent_mask):
-        """ Build mask with combination of full attention and autoregressive attention
+#     # TODO Move to data module
+#     def _build_mask(self, sent_mask):
+#         """ Build mask with combination of full attention and autoregressive attention
 
-        Args:
-            sent_mask (torch.Tensor): Sentence mask of shape (seq_len, batch_size)
+#         Args:
+#             sent_mask (torch.Tensor): Sentence mask of shape (seq_len, batch_size)
 
-        Returns:
-            Attention mask (tensor of shape (batch_size, seq_len, seq_len))
-        """
+#         Returns:
+#             Attention mask (tensor of shape (batch_size, seq_len, seq_len))
+#         """
 
-        seq_len, batch_size = tuple(sent_mask.shape)
+#         seq_len, batch_size = tuple(sent_mask.shape)
         
-        sent2_length = sent_mask.sum(dim=0)
-        start_idxs = seq_len - sent2_length
+#         sent2_length = sent_mask.sum(dim=0)
+#         start_idxs = seq_len - sent2_length
 
-        masks = []
-        for l, idx in zip(sent2_length.tolist(), start_idxs.tolist()):
-            enc_mask = torch.zeros((seq_len, idx))
-            upper_dec_mask = torch.ones((idx, l))
-            lower_dec_mask = torch.ones((l, l)).triu_(1)
-            dec_mask = torch.cat((upper_dec_mask, lower_dec_mask), dim=0)
-            mask = torch.cat((enc_mask, dec_mask), dim=1)
-            masks.append(mask)
+#         masks = []
+#         for l, idx in zip(sent2_length.tolist(), start_idxs.tolist()):
+#             enc_mask = torch.zeros((seq_len, idx))
+#             upper_dec_mask = torch.ones((idx, l))
+#             lower_dec_mask = torch.ones((l, l)).triu_(1)
+#             dec_mask = torch.cat((upper_dec_mask, lower_dec_mask), dim=0)
+#             mask = torch.cat((enc_mask, dec_mask), dim=1)
+#             masks.append(mask)
 
-        batch_mask = torch.stack(masks)
-        return batch_mask
+#         batch_mask = torch.stack(masks)
+#         return batch_mask
 
 
 class BARTModel(_AbsTransformerModel):
@@ -302,6 +304,8 @@ class BARTModel(_AbsTransformerModel):
         activation,
         num_steps,
         max_seq_len,
+        schedule="cycle",
+        warm_up_steps=None,
         dropout=0.1,
         **kwargs
     ):
@@ -318,12 +322,21 @@ class BARTModel(_AbsTransformerModel):
             num_steps,
             max_seq_len,
             dropout,
+            schedule=schedule,
+            warm_up_steps=warm_up_steps,
             **kwargs
         )
 
         self.sampler = decode_sampler
         self.val_sampling_alg = "greedy"
+        self.test_sampling_alg = "beam"
         self.num_beams = 5
+
+        self.schedule = schedule
+        self.warm_up_steps = warm_up_steps
+
+        if self.schedule == "transformer":
+            assert warm_up_steps is not None, "A value for warm_up_steps is required for transformer LR schedule"
 
         enc_norm = nn.LayerNorm(d_model)
         dec_norm = nn.LayerNorm(d_model)
@@ -368,7 +381,7 @@ class BARTModel(_AbsTransformerModel):
         decoder_embs = self._construct_input(decoder_input)
 
         seq_len, _, _ = tuple(decoder_embs.size())
-        tgt_mask = self._generate_square_subsequent_mask(seq_len).to(self.device)
+        tgt_mask = self._generate_square_subsequent_mask(seq_len, device=encoder_embs.device)
 
         memory = self.encoder(encoder_embs, src_key_padding_mask=encoder_pad_mask)
         model_output = self.decoder(
@@ -427,7 +440,7 @@ class BARTModel(_AbsTransformerModel):
         decoder_embs = self._construct_input(decoder_input)
 
         seq_len, _, _ = tuple(decoder_embs.size())
-        tgt_mask = self._generate_square_subsequent_mask(seq_len).to(self.device)
+        tgt_mask = self._generate_square_subsequent_mask(seq_len, device=decoder_embs.device)
 
         model_output = self.decoder(
             decoder_embs, 
@@ -440,6 +453,35 @@ class BARTModel(_AbsTransformerModel):
         token_probs = self.log_softmax(token_output)
         return token_probs
 
+    def configure_optimizers(self):
+        params = self.parameters()
+        optim = torch.optim.Adam(params, lr=self.lr, weight_decay=self.weight_decay, betas=(0.9, 0.999))
+
+        if self.schedule == "const":
+            print("Using constant LR schedule.")
+            sch = LambdaLR(optim, lr_lambda=lambda epoch: 1)
+
+        elif self.schedule == "cycle":
+            print("Using cyclical LR schedule.")
+            cycle_sch = OneCycleLR(optim, self.lr, total_steps=self.num_steps)
+            sch = {"scheduler": cycle_sch, "interval": "step"}
+
+        elif self.schedule == "transformer":
+            print("Using original transformer schedule.")
+            trans_sch = FuncLR(optim, lr_lambda=self._transformer_lr)
+            sch = {"scheduler": trans_sch, "interval": "step"}
+
+        else:
+            raise ValueError(f"Unknown schedule {self.schedule}")
+
+        return [optim], [sch]
+
+    def _transformer_lr(self, step):
+        mult = self.d_model ** -0.5
+        step = 1 if step == 0 else step  # Stop div by zero errors
+        lr = min(step ** -0.5, step * (self.warm_up_steps ** -1.5))
+        return self.lr * mult * lr
+
     def validation_step(self, batch, batch_idx):
         self.eval()
 
@@ -447,21 +489,65 @@ class BARTModel(_AbsTransformerModel):
         target_smiles = batch["target_smiles"]
 
         loss = self._calc_loss(batch, model_output)
-        token_acc = self._calc_char_acc(batch, model_output)
+        token_acc = self._calc_token_acc(batch, model_output)
         perplexity = self._calc_perplexity(batch, model_output)
         mol_strs, log_lhs = self.sample_molecules(batch, sampling_alg=self.val_sampling_alg)
         metrics = self.sampler.calc_sampling_metrics(mol_strs, target_smiles)
 
+        mol_acc = torch.tensor(metrics["accuracy"], device=loss.device)
+        invalid = torch.tensor(metrics["invalid"], device=loss.device)
+
+        # Log for prog bar only
+        self.log("mol_acc", mol_acc, prog_bar=True, logger=False, sync_dist=True)
+
         val_outputs = {
-            "val_loss": loss.item(),
+            "val_loss": loss,
             "val_token_acc": token_acc,
-            "val_perplexity": perplexity,
-            "val_molecular_accuracy": metrics["accuracy"],
-            "val_invalid_smiles": metrics["invalid"]
+            "perplexity": perplexity,
+            "val_molecular_accuracy": mol_acc,
+            "val_invalid_smiles": invalid
         }
         return val_outputs
 
     def validation_epoch_end(self, outputs):
+        avg_outputs = self._avg_dicts(outputs)
+        self._log_dict(avg_outputs)
+
+    def test_step(self, batch, batch_idx):
+        self.eval()
+
+        model_output = self.forward(batch)
+        target_smiles = batch["target_smiles"]
+
+        loss = self._calc_loss(batch, model_output)
+        token_acc = self._calc_token_acc(batch, model_output)
+        perplexity = self._calc_perplexity(batch, model_output)
+        mol_strs, log_lhs = self.sample_molecules(batch, sampling_alg=self.test_sampling_alg)
+        metrics = self.sampler.calc_sampling_metrics(mol_strs, target_smiles)
+
+        test_outputs = {
+            "test_loss": loss.item(),
+            "test_token_acc": token_acc,
+            "test_perplexity": perplexity,
+            "test_invalid_smiles": metrics["invalid"]
+        }
+
+        if self.test_sampling_alg == "greedy":
+            test_outputs["test_molecular_accuracy"] = metrics["accuracy"]
+
+        elif self.test_sampling_alg == "beam":
+            test_outputs["test_molecular_accuracy"] = metrics["top_1_accuracy"]
+            test_outputs["test_molecular_top_1_accuracy"] = metrics["top_1_accuracy"]
+            test_outputs["test_molecular_top_2_accuracy"] = metrics["top_2_accuracy"]
+            test_outputs["test_molecular_top_3_accuracy"] = metrics["top_3_accuracy"]
+            test_outputs["test_molecular_top_5_accuracy"] = metrics["top_5_accuracy"]
+
+        else:
+            raise ValueError(f"Unknown test sampling algorithm, {self.test_sampling_alg}")
+
+        return test_outputs
+
+    def test_epoch_end(self, outputs):
         avg_outputs = self._avg_dicts(outputs)
         self._log_dict(avg_outputs)
 
@@ -520,9 +606,9 @@ class BARTModel(_AbsTransformerModel):
         seq_lengths = inv_target_mask.sum(dim=0)
         exp = - (1 / seq_lengths)
         perp = torch.pow(log_probs.exp(), exp)
-        return perp.mean().item()
+        return perp.mean()
 
-    def _calc_char_acc(self, batch_input, model_output):
+    def _calc_token_acc(self, batch_input, model_output):
         token_ids = batch_input["target"]
         target_mask = batch_input["target_pad_mask"]
         token_output = model_output["token_output"]
@@ -532,8 +618,8 @@ class BARTModel(_AbsTransformerModel):
         correct_ids = torch.eq(token_ids, pred_ids)
         correct_ids = correct_ids * target_mask
 
-        num_correct = correct_ids.sum().cpu().detach().item()
-        total = target_mask.sum().cpu().detach().item()
+        num_correct = correct_ids.sum().float()
+        total = target_mask.sum().float()
 
         accuracy = num_correct / total
         return accuracy
@@ -567,10 +653,10 @@ class BARTModel(_AbsTransformerModel):
         decode_fn = partial(self._decode_fn, memory=memory, mem_pad_mask=mem_mask)
 
         if sampling_alg == "greedy":
-            mol_strs, log_lhs = self.sampler.greedy_decode(decode_fn, batch_size, self.device)
+            mol_strs, log_lhs = self.sampler.greedy_decode(decode_fn, batch_size, memory.device)
 
         elif sampling_alg == "beam":
-            mol_strs, log_lhs = self.sampler.beam_decode(decode_fn, batch_size, self.device, k=self.num_beams)
+            mol_strs, log_lhs = self.sampler.beam_decode(decode_fn, batch_size, memory.device, k=self.num_beams)
 
         else:
             raise ValueError(f"Unknown sampling algorithm {sampling_alg}")
