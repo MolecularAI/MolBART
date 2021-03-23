@@ -1,40 +1,24 @@
 #!/bin/bash
 
 # Change for multinode config
-export MASTER_ADDR=$2
-export MASTER_PORT=6000
+MASTER_ADDR=localhost
+MASTER_PORT=6000
+NNODES=1
+NODE_RANK=0
 
-if [ -z "$MASTER_PORT" ]
-then
-      MASTER_PORT=6000
-else
-      MASTER_PORT=$MASTER_PORT
-fi
-
-export NNODES=$SLURM_JOB_NUM_NODES
-
-if [ -z "$NNODES" ]
-then
-      NNODES=1
-else
-      NNODES=$NNODES
-fi
-
-NODE_RANK=$SLURM_NODEID
-
-if [ -z "$NODE_RANK" ]
-then
-      NODE_RANK=0
-else
-      NODE_RANK=$SLURM_NODEID
-fi
 #export dataset_path=$1
 export megatron_config_path=$1
 
 script_path=$(realpath $0)
 script_dir=$(dirname $script_path)
-config_json="$script_dir/megatron_molbart/ds_config.json"
+config_json=$3
 #megatron_config=$1
+if [ -z "$config_json" ]
+then
+      config_json="$script_dir/megatron_molbart/ds_config.json"
+else
+      megatron_config=$config_json
+fi
 
 if [ -z "$megatron_config_path" ]
 then
@@ -50,8 +34,8 @@ WORLD_SIZE=$(($GPUS_PER_NODE*$NNODES))
 export DLWS_NUM_WORKER=${NNODES}
 export DLWS_NUM_GPU_PER_WORKER=${GPUS_PER_NODE}
 
-run_python_config="python deepspeed_config.py --batch_size ${batch_size} --gradient_accumulation_steps ${gradient_accumulation_steps} --world_size ${WORLD_SIZE}"
-eval ${run_python_config}
+# run_python_config="python deepspeed_config.py --batch_size ${batch_size} --gradient_accumulation_steps ${gradient_accumulation_steps} --world_size ${WORLD_SIZE}"
+# eval ${run_python_config}
 
 #ZeRO Configs
 stage=1

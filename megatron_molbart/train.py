@@ -364,6 +364,7 @@ def train(
 
 
 def run_training(ckpt_dir='megatron_molbart_checkpoint'):
+    deepspeed.init_distributed()
     initialize_megatron()
     args = get_args()
     print_rank_0('Loading dataset(s) ...')
@@ -402,4 +403,4 @@ def load_model():
 
 
 if __name__ == '__main__':
-    run_training(ckpt_dir=None)
+    run_training()
