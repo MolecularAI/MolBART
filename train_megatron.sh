@@ -1,14 +1,13 @@
 #!/bin/bash
 
 # Change for multinode config
-MASTER_ADDR=localhost
-MASTER_PORT=6000
-NNODES=1
-NODE_RANK=0
+export MASTER_ADDR=localhost
+export MASTER_PORT=6000
+export NNODES=1
+export NODE_RANK=0
 
 #export dataset_path=$1
 export megatron_config_path=$1
-
 script_path=$(realpath $0)
 script_dir=$(dirname $script_path)
 config_json=$3
@@ -27,10 +26,9 @@ else
       megatron_config=$megatron_config_path
 fi
 #"
+export GPUS_PER_NODE=4
 source $megatron_config
-
-GPUS_PER_NODE=${n_gpus}
-WORLD_SIZE=$(($GPUS_PER_NODE*$NNODES))
+export WORLD_SIZE=$(($GPUS_PER_NODE*$NNODES))
 export DLWS_NUM_WORKER=${NNODES}
 export DLWS_NUM_GPU_PER_WORKER=${GPUS_PER_NODE}
 

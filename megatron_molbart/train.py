@@ -154,7 +154,9 @@ def setup_model_and_optimizer(args):
     print_rank_0('DeepSpeed is enabled.')
 
     # (mpu if args.pipe_parallel_size == 0 else None)
-
+    rankmpi = int(os.getenv('LOCAL_RANK', '0'))
+    args.rank = rankmpi
+    args.local_rank = rankmpi
     (model, optimizer, _, lr_scheduler) = deepspeed.initialize(
         model=model,
         optimizer=optimizer,
