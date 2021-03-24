@@ -329,7 +329,7 @@ def train(
     args,
     ):
     """Train the model function."""
-
+    
     global num_batches_processed
 
     timers = get_timers()
@@ -364,7 +364,7 @@ def train(
 
 
 def run_training(ckpt_dir='megatron_molbart_checkpoint'):
-    #deepspeed.init_distributed()
+    deepspeed.init_distributed()
     initialize_megatron()
     args = get_args()
     print_rank_0('Loading dataset(s) ...')
