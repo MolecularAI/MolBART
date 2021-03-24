@@ -136,7 +136,7 @@ fi
 
 full_options="${megatron_options} ${deepspeed_options} ${chkp_opt}"
 #run_cmd="deepspeed --num_nodes ${DLWS_NUM_WORKER} --num_gpus ${DLWS_NUM_GPU_PER_WORKER} megatron_molbart/train.py $@ ${full_options}"
-run_cmd="deepspeed --num_nodes ${DLWS_NUM_WORKER} --num_gpus ${DLWS_NUM_GPU_PER_WORKER} megatron_molbart/train.py ${full_options}"
+run_cmd="deepspeed --num_nodes ${DLWS_NUM_WORKER} --num_gpus ${DLWS_NUM_GPU_PER_WORKER} megatron_molbart/train.py --deepspeed --deepspeed_mpi ${full_options}"
 echo ${run_cmd}
 eval ${run_cmd}
 
