@@ -335,7 +335,7 @@ def train(
     args,
     ):
     """Train the model function."""
-    
+
     global num_batches_processed
 
     timers = get_timers()
@@ -343,7 +343,6 @@ def train(
     iteration = 0
     timers('interval time').start()
     report_memory_flag = True
-    print_rank_0('Iteration, Loss, Acc, Batch No, Epoch')
     while iteration < args.train_iters:
         loss = train_step(
             forward_step_func,
@@ -353,24 +352,22 @@ def train(
             lr_scheduler,
             pipe_parallel_size,
             )
+
         iteration += 1
-        # print_rank_0('Iteration: ' + str(iteration) + '/'
-        #              + str(args.train_iters) + ', Loss: '
-        #              + str(loss['mask loss'].item()) + ', Acc: '
-        #              + str(loss['acc']) + ',Invalid_smiles_validation: '
-        #              + str(inv_smiles['val_invalid_smiles']) + ', Num batches: '
-        #              + str(num_batches_processed) + '/'
-        #              + str(len(trainloader.loader)) + ', Epoch: '
-        #              + str(epochs))
-        print_rank_0(str(iteration) +','+  str(loss['mask loss'].item()) + ',' 
-                     + str(loss['acc']) +','
-                     + str(num_batches_processed) + ','
+        print_rank_0('Iteration: ' + str(iteration) + '/'
+                     + str(args.train_iters) + ', Loss: '
+                     + str(loss['mask loss'].item()) + ', Acc: '
+                     + str(loss['acc']) + ', Num batches: '
+                     + str(num_batches_processed) + '/'
+                     + str(len(trainloader.loader)) + ', Epoch: '
                      + str(epochs))
+
         # Checkpointing
         if iteration % args.save_interval == 0:
             save_ds_checkpoint(iteration, model, args)
 
     return iteration
+
 
 
 def run_training(ckpt_dir='megatron_molbart_checkpoint'):
