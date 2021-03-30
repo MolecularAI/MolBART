@@ -25,7 +25,7 @@ import random
 from deepspeed.utils import RepeatingLoader
 import os
 import argparse
-
+import pandas as pd
 tokenizer = MolEncTokeniser.from_vocab_file(DEFAULT_VOCAB_PATH, REGEX,
         DEFAULT_CHEM_TOKEN_START)
 num_batches_processed = 0
@@ -260,10 +260,14 @@ def eval_step(data_iterator, model):
 
     val_ouputs = model.module.validation_step(batch)
     invalid_smiles = val_ouputs['val_invalid_smiles']
-
+    val_loss = val_outpus['val_loss']
+    token_acc = val_outputs['val_token_acc']
+    val_perplexity= val_outputs['val_perplexity']
+    val_molecular_accuracy= val_outputs['val_molecular_accuracy']
     # Reduce loss for logging.
 
     reduced_invalid_smiles = reduce_losses([invalid_smiles])
+    
     return {'val_invalid_smiles': reduced_invalid_smiles[0]}
 
 
@@ -339,6 +343,7 @@ def train(
     iteration = 0
     timers('interval time').start()
     report_memory_flag = True
+    print_rank_0('Iteration, Loss, Acc, Batch No, Epoch')
     while iteration < args.train_iters:
         loss = train_step(
             forward_step_func,
@@ -348,16 +353,19 @@ def train(
             lr_scheduler,
             pipe_parallel_size,
             )
-
         iteration += 1
-        print_rank_0('Iteration: ' + str(iteration) + '/'
-                     + str(args.train_iters) + ', Loss: '
-                     + str(loss['mask loss'].item()) + ', Acc: '
-                     + str(loss['acc']) + ', Num batches: '
-                     + str(num_batches_processed) + '/'
-                     + str(len(trainloader.loader)) + ', Epoch: '
+        # print_rank_0('Iteration: ' + str(iteration) + '/'
+        #              + str(args.train_iters) + ', Loss: '
+        #              + str(loss['mask loss'].item()) + ', Acc: '
+        #              + str(loss['acc']) + ',Invalid_smiles_validation: '
+        #              + str(inv_smiles['val_invalid_smiles']) + ', Num batches: '
+        #              + str(num_batches_processed) + '/'
+        #              + str(len(trainloader.loader)) + ', Epoch: '
+        #              + str(epochs))
+        print_rank_0(str(iteration) +','+  str(loss['mask loss'].item()) + ',' 
+                     + str(loss['acc']) +','
+                     + str(num_batches_processed) + ','
                      + str(epochs))
-
         # Checkpointing
         if iteration % args.save_interval == 0:
             save_ds_checkpoint(iteration, model, args)

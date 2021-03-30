@@ -581,7 +581,7 @@ class MegatronBART(MegatronModule):
         token_probs = self.log_softmax(token_output)
         return token_probs
 
-    def validation_step(self, batch, batch_idx):
+    def validation_step(self, batch, batch_idx=None):
         self.eval()
 
         model_output = self.forward(batch)

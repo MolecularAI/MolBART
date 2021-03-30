@@ -1,5 +1,6 @@
 import torch
 from torch.utils.data import Dataset
+from megatron import get_args
 from pysmilesutils.augment import MolRandomizer, SMILESRandomizer
 from pysmilesutils.datautils import BucketBatchSampler
 from molbart.tokeniser import MolEncTokeniser
@@ -17,6 +18,9 @@ from megatron import mpu
 import torch
 from pathlib import Path
 import pandas as pd
+import os
+import sys
+import random
 
 tokenizer = MolEncTokeniser.from_vocab_file(DEFAULT_VOCAB_PATH, REGEX,
         DEFAULT_CHEM_TOKEN_START)
@@ -138,7 +142,7 @@ class MoleculeDataLoader(object):
 
         path = Path(file_path)
         if path.is_dir():
-            self.df = self._read_dir_df(path)
+            self.df = self._read_dir_df(file_path)
         else:
             self.df = pd.read_csv(path)
         #self.df = pandas.read_csv(file_path)
@@ -166,8 +170,15 @@ class MoleculeDataLoader(object):
         return (self.train_loader, self.val_loader)
 
     def _read_dir_df(self, path):
-
-        dfs = [pd.read_csv(f) for f in path.iterdir()]
+        args = get_args()
+        names=os.listdir(path)
+        m = len(names)
+        partition=int(m/args.world_size) + 1
+        partition = max(partition,10)
+        idx = partition*args.rank % m
+        idx_1 = partition*(args.rank+1) % m
+        selected_names = names[idx:idx_1]
+        dfs = [pd.read_csv(path+ '/' + f) for f in selected_names]
 
         zinc_df = pd.concat(dfs, ignore_index=True, copy=False)
         return zinc_df
