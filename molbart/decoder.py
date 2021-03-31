@@ -377,11 +377,14 @@ class DecodeSampler:
         err_msg = f"The number of sampled and target molecules must be the same, got {num_sampled} and {num_target}"
         assert num_sampled == num_target, err_msg
 
+        mol_targets = [Chem.MolFromSmiles(smi) for smi in target_smiles]
+        canon_targets = [Chem.MolToSmiles(mol) for mol in mol_targets]
+
         data_type = type(sampled_smiles[0])
         if data_type == str:
-            results = DecodeSampler._calc_greedy_metrics(sampled_smiles, target_smiles)
+            results = DecodeSampler._calc_greedy_metrics(sampled_smiles, canon_targets)
         elif data_type == list:
-            results = DecodeSampler._calc_beam_metrics(sampled_smiles, target_smiles)
+            results = DecodeSampler._calc_beam_metrics(sampled_smiles, canon_targets)
         else:
             raise TypeError(f"Elements of sampled_smiles must be either a str or a list, got {data_type}")
 
