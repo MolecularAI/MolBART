@@ -83,6 +83,7 @@ megatron_options=" \
         --eval-iters ${eval_iters} \
         --save ${checkpoint_directory}
         --fp16
+	--tensorboard-dir "${script_dir}/tensorboard_data"
 "
 
 deepspeed_options=" \

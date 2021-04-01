@@ -2,13 +2,14 @@ from molbart.tokeniser import MolEncTokeniser
 from molbart.util import DEFAULT_CHEM_TOKEN_START
 from molbart.util import REGEX
 from molbart.util import DEFAULT_VOCAB_PATH
-from megatron import print_rank_0
+from megatron import print_rank_0, get_tensorboard_writer
 from megatron.initialize import initialize_megatron
 from megatron.model import get_params_for_weight_decay_optimization
 from megatron.learning_rates import AnnealingLR
 from megatron import mpu
 from megatron.utils import report_memory
 from megatron.utils import reduce_losses
+from megatron.training import evaluate
 from megatron import get_timers
 from apex.optimizers import FusedAdam as Adam
 from torch.optim import AdamW
@@ -26,6 +27,8 @@ from deepspeed.utils import RepeatingLoader
 import os
 import argparse
 import pandas as pd
+import sys
+from torch.utils.tensorboard import SummaryWriter
 tokenizer = MolEncTokeniser.from_vocab_file(DEFAULT_VOCAB_PATH, REGEX,
         DEFAULT_CHEM_TOKEN_START)
 num_batches_processed = 0
@@ -154,9 +157,10 @@ def setup_model_and_optimizer(args):
     print_rank_0('DeepSpeed is enabled.')
 
     # (mpu if args.pipe_parallel_size == 0 else None)
-    rankmpi = int(os.getenv('LOCAL_RANK', '0'))
+    localrankmpi = int(os.getenv('LOCAL_RANK', '0'))
+    rankmpi = int(os.getenv('RANK', '0'))
     args.rank = rankmpi
-    args.local_rank = rankmpi
+    args.local_rank = localrankmpi
     (model, optimizer, _, lr_scheduler) = deepspeed.initialize(
         model=model,
         optimizer=optimizer,
@@ -179,7 +183,7 @@ def get_batch(data_iterator):
         'decoder_input',
         'decoder_pad_mask',
         'target',
-        'target_pad_mask',
+        'target_pad_mask'
         ]
     datatype = torch.int64
     data = next(data_iterator)
@@ -193,7 +197,7 @@ def get_batch(data_iterator):
     decoder_pad_mask = data_b['decoder_pad_mask'].bool()
     target = data_b['target'].long()
     target_pad_mask = data_b['target_pad_mask'].long()
-
+    target_smiles = data['target_smiles']
     num_batches_processed += 1
 
     return {
@@ -203,10 +207,11 @@ def get_batch(data_iterator):
         'decoder_pad_mask': decoder_pad_mask,
         'target': target,
         'target_pad_mask': target_pad_mask,
+        'target_smiles': target_smiles
         }
 
 
-def forward_step(data_iterator, model):
+def forward_step(data_iterator, model,validate=False):
     """Forward step."""
 
     timers = get_timers()
@@ -221,14 +226,29 @@ def forward_step(data_iterator, model):
 
     tokens = batch['target']
     pad_mask = batch['target_pad_mask']
+    target_smiles = batch['target_smiles']
     outputs = model(batch)
     token_output = outputs['token_output']
     loss = model.module._calc_loss(batch, outputs)
     acc = model.module._calc_char_acc(batch, outputs)
-
-    # Reduce loss for logging.
-
     reduced_loss = reduce_losses([loss])
+    # Reduce loss for logging.
+    if validate:
+        perplexity = model.module._calc_perplexity(batch, outputs)
+        (mol_strs, log_lhs) = model.module.sample_molecules(batch,
+                sampling_alg=model.module.val_sampling_alg)
+        metrics = model.module.sampler.calc_sampling_metrics(mol_strs,
+                target_smiles)
+
+        val_outputs = {
+            'mask loss': reduced_loss[0],
+            'acc': acc,
+            'val_perplexity': perplexity,
+            'val_molecular_accuracy': metrics['accuracy'],
+            'val_invalid_smiles': metrics['invalid'],
+            }
+        return (loss, val_outputs)
+    
     return (loss, {'mask loss': reduced_loss[0], 'acc': acc})
 
 
@@ -268,8 +288,45 @@ def eval_step(data_iterator, model):
 
     reduced_invalid_smiles = reduce_losses([invalid_smiles])
     
-    return {'val_invalid_smiles': reduced_invalid_smiles[0]}
+    return {'val_invalid_smiles': reduced_invalid_smiles[0], 'val_molecular_accuracy':val_molecular_accuracy}
 
+def evaluate(forward_step_func, data_iterator, model, verbose=False):
+    """Evaluation."""
+    args = get_args()
+
+    # Turn on evaluation mode which disables dropout.
+    model.eval()
+
+    total_loss_dict = {}
+
+    with torch.no_grad():
+        iteration = 0
+        while iteration < args.eval_iters:
+            iteration += 1
+            if verbose and iteration % args.log_interval == 0:
+                print_rank_0('Evaluating iter {}/{}'.format(iteration,
+                                                            args.eval_iters))
+            # Forward evaluation.
+            _, loss_dict = forward_step_func(data_iterator, model,validate=True)
+
+            # When contiguous memory optimizations are enabled, the buffers
+            # allocated by the optimizations are deallocated during backward pass
+            # in the absence of backward pass the buffers should be reset after each
+            # forward pass
+            if args.deepspeed and args.deepspeed_activation_checkpointing:
+                deepspeed.checkpointing.reset()
+
+            # Reduce across processes.
+            for key in loss_dict:
+                total_loss_dict[key] = total_loss_dict.get(key, 0.) + \
+                    loss_dict[key]
+    # Move model back to the train mode.
+    model.train()
+
+    for key in total_loss_dict:
+        total_loss_dict[key] /= args.eval_iters
+
+    return total_loss_dict
 
 def train_step(
     forward_step_func,
@@ -337,7 +394,7 @@ def train(
     """Train the model function."""
 
     global num_batches_processed
-
+    writer = get_tensorboard_writer()
     timers = get_timers()
     model.train()
     iteration = 0
@@ -361,11 +418,20 @@ def train(
                      + str(num_batches_processed) + '/'
                      + str(len(trainloader.loader)) + ', Epoch: '
                      + str(epochs))
-
+        if torch.distributed.get_rank() == 0:
+            writer.add_scalar('training mask loss',loss['mask loss'], iteration)
+            writer.add_scalar('training acc',loss['acc'], iteration)
         # Checkpointing
         if iteration % args.save_interval == 0:
             save_ds_checkpoint(iteration, model, args)
-
+        if iteration % args.eval_interval == 0:
+            loss_dict_val= evaluate(forward_step_func, val_data_iterator, model)
+            if torch.distributed.get_rank() == 0:
+                writer.add_scalar('validation mask loss',loss_dict_val['mask loss'], iteration)
+                writer.add_scalar('validation acc',loss_dict_val['acc'], iteration)
+                writer.add_scalar('validation perplexity',loss_dict_val['val_perplexity'], iteration)
+                writer.add_scalar('validation molecular accuracy',loss_dict_val['val_molecular_accuracy'], iteration)
+                writer.add_scalar('Invalid smiles',loss_dict_val['val_invalid_smiles'], iteration)
     return iteration
 
 
@@ -410,4 +476,5 @@ def load_model():
 
 
 if __name__ == '__main__':
+    writer = SummaryWriter()
     run_training()

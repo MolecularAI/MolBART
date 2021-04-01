@@ -8,6 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch
 import math
+from functools import partial
 
 
 class MultiheadAttention(MegatronModule):
@@ -577,7 +578,7 @@ class MegatronBART(MegatronModule):
                                     tgt_key_padding_mask=decoder_pad_mask,
                                     memory_key_padding_mask=memory_pad_mask,
                                     tgt_mask=tgt_mask)
-        token_output = self.token_fc(model_output)
+        token_output, _  = self.token_fc(model_output)
         token_probs = self.log_softmax(token_output)
         return token_probs
 
@@ -692,7 +693,7 @@ class MegatronBART(MegatronModule):
         enc_mask = batch_input['encoder_pad_mask']
 
         # Freezing the weights reduces the amount of memory leakage in the transformer
-        model.eval()
+        #model.eval()
 
         with torch.no_grad():
 
@@ -703,17 +704,17 @@ class MegatronBART(MegatronModule):
             (_, batch_size, _) = tuple(memory.size())
             decode_fn = partial(self._decode_fn, memory=memory,
                                 mem_pad_mask=mem_mask)
-            self.sampler.device = self.device
+            #self.sampler.device = self.device
             if sampling_alg == 'greedy':
                 (mol_strs, log_lhs) = \
-                    self.sampler.greedy_decode(decode_fn, batch_size)
+                    self.sampler.greedy_decode(decode_fn, batch_size,device=memory.device)
             elif sampling_alg == 'beam':
                 (mol_strs, log_lhs) = \
                     self.sampler.beam_decode(decode_fn, batch_size,
-                        self.num_beams)
+                        self.num_beams,device=memory.device)
 
         # Must remember to unfreeze!
-        model.train()
+        #model.train()
 
         return (mol_strs, log_lhs)
 
