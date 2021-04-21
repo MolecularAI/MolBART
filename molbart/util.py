@@ -222,7 +222,7 @@ def build_trainer(args):
     if args.gpus > 1:
         accelerator = "ddp"
         lr_monitor = OptLRMonitor()
-        plugins = [DeepSpeedPlugin(config=args.deepspeed_config_path)]
+        plugins = [DeepSpeedPlugin(config=args.deepspeed_config_path, num_nodes=args.num_nodes)]
 
     callbacks = [lr_monitor, checkpoint_cb]
 
