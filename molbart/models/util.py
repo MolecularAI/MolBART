@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 from torch.optim.lr_scheduler import LambdaLR
-from onmt.modules import MultiHeadedAttention
 
 
 class FuncLR(LambdaLR):
@@ -56,6 +55,7 @@ class PreNormDecoderLayer(nn.TransformerDecoderLayer):
 
 class MaskedEncoderLayer(nn.TransformerEncoderLayer):
     def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1, activation="relu"):
+        from onmt.modules import MultiHeadedAttention
         # Copied from pytorch implementation, but use OpenNMT MultiHeadedAttention
 
         super().__init__(
