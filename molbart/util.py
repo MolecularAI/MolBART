@@ -11,7 +11,7 @@ from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint, Callback
 
 from molbart.tokeniser import MolEncTokeniser
-from molbart.models.bart_fine_tune import ReactionBART
+#from molbart.models.bart_fine_tune import ReactionBART
 from molbart.data.datasets import Chembl, Uspto50, UsptoMit, Zinc, ZincSlice
 from molbart.data.datamodules import MoleculeDataModule, FineTuneReactionDataModule
 
@@ -237,6 +237,7 @@ def seed_everything(seed):
 
 
 def load_eval_model(args, sampler, pad_token_idx):
+    from molbart.models.bart_fine_tune import ReactionBART
     model = ReactionBART.load_from_checkpoint(
         args.model_path,
         decode_sampler=sampler,

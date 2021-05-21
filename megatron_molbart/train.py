@@ -1,7 +1,7 @@
 from molbart.tokeniser import MolEncTokeniser
-from molbart.util import DEFAULT_CHEM_TOKEN_START
-from molbart.util import REGEX
-from molbart.util import DEFAULT_VOCAB_PATH
+#from molbart.util import DEFAULT_CHEM_TOKEN_START
+#from molbart.util import REGEX
+#from molbart.util import DEFAULT_VOCAB_PATH
 from megatron import print_rank_0, get_tensorboard_writer
 from megatron.initialize import initialize_megatron
 from megatron.model import get_params_for_weight_decay_optimization
@@ -29,6 +29,10 @@ import argparse
 import pandas as pd
 import sys
 from torch.utils.tensorboard import SummaryWriter
+
+DEFAULT_VOCAB_PATH = "bart_vocab.txt"
+DEFAULT_CHEM_TOKEN_START = 272
+REGEX = "\[[^\]]+]|Br?|Cl?|N|O|S|P|F|I|b|c|n|o|s|p|\(|\)|\.|=|#|-|\+|\\\\|\/|:|~|@|\?|>|\*|\$|\%[0-9]{2}|[0-9]"
 tokenizer = MolEncTokeniser.from_vocab_file(DEFAULT_VOCAB_PATH, REGEX,
         DEFAULT_CHEM_TOKEN_START)
 num_batches_processed = 0
