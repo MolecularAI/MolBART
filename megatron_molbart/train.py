@@ -10,6 +10,7 @@ from megatron import mpu
 from megatron.utils import report_memory
 from megatron.utils import reduce_losses
 from megatron.training import evaluate
+from megatron.checkpointing import save_checkpoint
 from megatron import get_timers
 from apex.optimizers import FusedAdam as Adam
 from torch.optim import AdamW
@@ -371,7 +372,7 @@ def train(
             writer.add_scalar('training acc',loss['acc'], iteration)
         # Checkpointing
         if iteration % args.save_interval == 0:
-            save_ds_checkpoint(iteration, model, args)
+            save_checkpoint(iteration, model, optimizer, lr_scheduler)
         if iteration % args.eval_interval == 0:
             loss_dict_val= evaluate(forward_step_func, val_data_iterator, model)
             if torch.distributed.get_rank() == 0:
