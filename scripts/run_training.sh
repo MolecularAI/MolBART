@@ -1,13 +1,20 @@
 #!/bin/bash -l
-#SBATCH --nodes 4 
-#SBATCH --ntasks 32 
-#SBATCH --ntasks-per-node 8 
-#SBATCH --gpus-per-node 8 
-#SBATCH --time=8:00:00
+#SBATCH --nodes 1 
+#SBATCH --ntasks 1 
+#SBATCH --ntasks-per-node 1 
+#SBATCH --gpus-per-node 1 
+#SBATCH --time=1:00:00
+#SBATCH --partition interactive 
 #SBATCH --account ent_joc_model_mpnn_pyt
-#SBATCH --partition batch 
 #SBATCH --job-name megamolbart
 #SBATCH --output runlog_batch.log
+
+#### SBATCH --nodes 4
+#### SBATCH --ntasks 32
+#### SBATCH --ntasks-per-node 8
+#### SBATCH --gpus-per-node 8
+#### SBATCH --time=8:00:00
+#### SBATCH --partition batch
 
 ### CONFIG ###
 CONTAINER="nvcr.io#nvidian/clara-lifesciences/megamolbart:latest"
@@ -17,7 +24,9 @@ CONFIG_DIR=${STORAGE_DIR}/config
 CHECKPOINT_DIR=${STORAGE_DIR}/checkpoints
 DEEPSPEED_CONFIG_DIR=${STORAGE_DIR}/config
 TENSORBOARD_DIR=${STORAGE_DIR}/tensorboard
-export MEGATRON_CONFIG_PATH=${CONFIG_DIR}/config_megatron.sh
+MEGAMOLBART_CODE_DIR=${STORAGE_DIR}/code/MolBART
+#export MEGATRON_CONFIG_PATH=${CONFIG_DIR}/config_megatron.sh
+export MEGATRON_CONFIG_PATH=${CONFIG_DIR}/config_megatron_checkpoint.sh
 
 DATA_MOUNT=/data
 CONFIG_MOUNT=/config
@@ -25,7 +34,8 @@ CHECKPOINT_MOUNT=/checkpoints
 DEEPSPEED_CONFIG_MOUNT=/deepspeed_config
 TENSORBOARD_MOUNT=/tensorboard
 WORKDIR=/opt/MolBART
-CONFIG_JSON_MOUNT=${DEEPSPEED_CONFIG_MOUNT}/config_json.json
+#CONFIG_DEEPSPEED_JSON_MOUNT=${DEEPSPEED_CONFIG_MOUNT}/config_deepspeed.json
+CONFIG_DEEPSPEED_JSON_MOUNT=${DEEPSPEED_CONFIG_MOUNT}/config_deepspeed_checkpoint.json
 
 # Change for multinode config
 export MASTER_PORT=6000
@@ -93,7 +103,7 @@ megatron_options=" \
 
 deepspeed_options=" \
 --deepspeed \
---deepspeed_config ${CONFIG_JSON_MOUNT} \
+--deepspeed_config ${CONFIG_DEEPSPEED_JSON_MOUNT} \
 --zero-stage ${stage} \
 --zero-reduce-bucket-size ${rbs} \
 --zero-allgather-bucket-size ${agbs}"
@@ -133,15 +143,16 @@ fi
 ### RUN COMMAND ###
 
 full_options="${megatron_options} ${deepspeed_options} ${chkp_opt}"
+MOUNTS="${MEGAMOLBART_CODE_DIR}:${WORKDIR},${DATA_DIR}:${DATA_MOUNT},${CONFIG_DIR}:${CONFIG_MOUNT},${CHECKPOINT_DIR}:${CHECKPOINT_MOUNT},${DEEPSPEED_CONFIG_DIR}:${DEEPSPEED_CONFIG_MOUNT},${TENSORBOARD_DIR}:${TENSORBOARD_MOUNT}"
 
 srun \
 --mpi=pmix \
---ntasks 32 \
---nodes 4 \
---ntasks-per-node 8 \
---gpus-per-node 8 \
+--nodes ${SLURM_JOB_NUM_NODES} \
+--ntasks ${SLURM_NTASKS} \
+--ntasks-per-node ${SLURM_NTASKS_PER_NODE} \
+--gpus-per-node ${SLURM_GPUS_PER_NODE} \
 --container-image ${CONTAINER} \
---container-mounts ${DATA_DIR}:${DATA_MOUNT},${CONFIG_DIR}:${CONFIG_MOUNT},${CHECKPOINT_DIR}:${CHECKPOINT_MOUNT},${DEEPSPEED_CONFIG_DIR}:${DEEPSPEED_CONFIG_MOUNT},${TENSORBOARD_DIR}:${TENSORBOARD_MOUNT} \
+--container-mounts ${MOUNTS} \
 --container-workdir ${WORKDIR} \
 python megatron_molbart/train.py --deepspeed --deepspeed_mpi ${full_options}
 

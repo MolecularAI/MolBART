@@ -11,6 +11,8 @@ CONFIG_DIR=${STORAGE_DIR}/config
 CHECKPOINT_DIR=${STORAGE_DIR}/checkpoints
 DEEPSPEED_CONFIG_DIR=${STORAGE_DIR}/config
 TENSORBOARD_DIR=${STORAGE_DIR}/tensorboard
+MEGAMOLBART_CODE_DIR=${STORAGE_DIR}/code/MolBART
+export MEGATRON_CONFIG_PATH=${CONFIG_DIR}/config_megatron_checkpoint.sh
 
 DATA_MOUNT=/data
 CONFIG_MOUNT=/config
@@ -18,7 +20,10 @@ CHECKPOINT_MOUNT=/checkpoints
 DEEPSPEED_CONFIG_MOUNT=/deepspeed_config
 TENSORBOARD_MOUNT=/tensorboard
 WORKDIR=/opt/MolBART
-CONFIG_JSON_MOUNT=${DEEPSPEED_CONFIG_MOUNT}/config_json.json
+CONFIG_JSON_MOUNT=${DEEPSPEED_CONFIG_MOUNT}/config_deepspeed_checkpoint.json
+
+full_options="${megatron_options} ${deepspeed_options} ${chkp_opt}"
+MOUNTS="${MEGAMOLBART_CODE_DIR}:${WORKDIR},${DATA_DIR}:${DATA_MOUNT},${CONFIG_DIR}:${CONFIG_MOUNT},${CHECKPOINT_DIR}:${CHECKPOINT_MOUNT},${DEEPSPEED_CONFIG_DIR}:${DEEPSPEED_CONFIG_MOUNT},${TENSORBOARD_DIR}:${TENSORBOARD_MOUNT}"
 
 srun \
 --account ent_joc_model_mpnn_pyt \
@@ -28,5 +33,5 @@ srun \
 --ntasks-per-node 1 \
 --container-image ${CONTAINER} \
 --container-workdir ${WORKDIR} \
---container-mounts ${DATA_DIR}:${DATA_MOUNT},${CONFIG_DIR}:${CONFIG_MOUNT},${CHECKPOINT_DIR}:${CHECKPOINT_MOUNT},${DEEPSPEED_CONFIG_DIR}:${DEEPSPEED_CONFIG_MOUNT},${TENSORBOARD_DIR}:${TENSORBOARD_MOUNT} \
+--container-mounts ${MOUNTS} \
 bash
