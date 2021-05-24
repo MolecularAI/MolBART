@@ -1,7 +1,4 @@
 from molbart.tokeniser import MolEncTokeniser
-#from molbart.util import DEFAULT_CHEM_TOKEN_START
-#from molbart.util import REGEX
-#from molbart.util import DEFAULT_VOCAB_PATH
 from megatron import print_rank_0, get_tensorboard_writer
 from megatron.initialize import initialize_megatron
 from megatron.model import get_params_for_weight_decay_optimization
@@ -10,6 +7,7 @@ from megatron import mpu
 from megatron.utils import report_memory
 from megatron.utils import reduce_losses
 from megatron.training import evaluate
+from megatron.checkpointing import save_checkpoint
 from megatron import get_timers
 from apex.optimizers import FusedAdam as Adam
 from torch.optim import AdamW
@@ -309,25 +307,6 @@ def train_step(
     return loss_reduced
 
 
-def save_ds_checkpoint(iteration, model, args):
-    """Save a model checkpoint."""
-
-    sd = {}
-    sd['iteration'] = iteration
-
-    # rng states.
-
-    if not args.no_save_rng:
-        sd['random_rng_state'] = random.getstate()
-        sd['np_rng_state'] = np.random.get_state()
-        sd['torch_rng_state'] = torch.get_rng_state()
-        sd['cuda_rng_state'] = torch.cuda.get_rng_state()
-        sd['rng_tracker_states'] = \
-            mpu.get_cuda_rng_tracker().get_states()
-
-    model.save_checkpoint(args.save, client_state=sd)
-
-
 def train(
     forward_step_func,
     model,
@@ -371,7 +350,7 @@ def train(
             writer.add_scalar('training acc',loss['acc'], iteration)
         # Checkpointing
         if iteration % args.save_interval == 0:
-            save_ds_checkpoint(iteration, model, args)
+            save_checkpoint(iteration, model, optimizer, lr_scheduler)
         if iteration % args.eval_interval == 0:
             loss_dict_val= evaluate(forward_step_func, val_data_iterator, model)
             if torch.distributed.get_rank() == 0:
@@ -387,8 +366,6 @@ def run_training(ckpt_dir='megatron_molbart_checkpoint'):
     args = get_args()
     print_rank_0('Loading dataset(s) ...')
     path = os.path.dirname(os.path.realpath(__file__))
-    # loader = MoleculeDataLoader(path + '/test_data/chembl_subset.csv',
-    #                             batch_size=256, num_workers=32)
     loader = MoleculeDataLoader(args.dataset_path,
                                 batch_size=args.batch_size, num_workers=32)
     (train_dataloader, val_dataloader) = loader.get_data()
