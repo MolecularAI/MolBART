@@ -1,32 +1,29 @@
-from molbart.tokeniser import MolEncTokeniser
-from megatron import print_rank_0, get_tensorboard_writer
-from megatron.initialize import initialize_megatron
-from megatron.model import get_params_for_weight_decay_optimization
-from megatron.learning_rates import AnnealingLR
-from megatron import mpu
-from megatron.utils import report_memory
-from megatron.utils import reduce_losses
-from megatron.training import evaluate
-from megatron.checkpointing import save_checkpoint
-from megatron import get_timers
-from apex.optimizers import FusedAdam as Adam
-from torch.optim import AdamW
-from megatron_bart import MegatronBART
-from molbart.decoder import DecodeSampler
-import deepspeed
-from csv_data import MoleculeDataLoader
-from megatron import get_args
 import numpy as np
 import pickle
-import torch
-from molbart.models.pre_train import BARTModel
 import random
-from deepspeed.utils import RepeatingLoader
 import os
 import argparse
 import pandas as pd
 import sys
+import torch
+from torch.optim import AdamW
 from torch.utils.tensorboard import SummaryWriter
+import deepspeed
+from deepspeed.utils import RepeatingLoader
+from apex.optimizers import FusedAdam as Adam
+from molbart.tokeniser import MolEncTokeniser
+from molbart.decoder import DecodeSampler
+from megatron import print_rank_0, get_tensorboard_writer, get_timers, mpu, get_args
+from megatron.initialize import initialize_megatron
+from megatron.model import get_params_for_weight_decay_optimization
+from megatron.learning_rates import AnnealingLR
+from megatron.utils import report_memory, reduce_losses
+from megatron.training import evaluate
+from megatron_bart import MegatronBART
+from csv_data import MoleculeDataLoader
+
+# from megatron.checkpointing import save_checkpoint
+from checkpointing import save_checkpoint, get_checkpoint_version
 
 DEFAULT_VOCAB_PATH = "bart_vocab.txt"
 DEFAULT_CHEM_TOKEN_START = 272
@@ -64,30 +61,6 @@ class RepeatingLoader:
                 epochs += 1
                 num_batches_processed = 0
         return batch
-
-
-def build_model_default(args):
-    VOCAB_SIZE = len(tokenizer)
-    MAX_SEQ_LEN = 512
-    pad_token_idx = tokenizer.vocab[tokenizer.pad_token]
-    sampler = DecodeSampler(tokenizer, MAX_SEQ_LEN)
-
-    model = BARTModel(
-        sampler,
-        pad_token_idx,
-        VOCAB_SIZE,
-        args.hidden_size,
-        args.num_layers,
-        args.num_attention_heads,
-        args.hidden_size * 4,
-        0.1,
-        0.1,
-        'gelu',
-        10000,
-        MAX_SEQ_LEN,
-        dropout=0.1,
-        )
-    return model
 
 
 def build_model(args):
