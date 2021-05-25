@@ -9,3 +9,4 @@ saved_models/
 notebooks/data/
 notebooks/.ipynb_checkpoints/
 notebooks/playground.ipynb
+tmp/*
