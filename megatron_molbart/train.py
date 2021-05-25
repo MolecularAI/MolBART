@@ -34,8 +34,8 @@ tokenizer = MolEncTokeniser.from_vocab_file(DEFAULT_VOCAB_PATH, REGEX,
 num_batches_processed = 0
 epochs = 0
 
-def get_deepspeed_checkpoint_dir():
-    return os.path.join(*os.path.split(args.save)[:-1], 'deepspeed')
+def get_deepspeed_checkpoint_dir(save_dir):
+    return os.path.join(*os.path.split(save_dir)[:-1], 'deepspeed')
 
 class RepeatingLoader:
 
@@ -327,7 +327,7 @@ def train(
         # Checkpointing
         if iteration % args.save_interval == 0:
             # Deepspeed checkpoint
-            path = get_deepspeed_checkpoint_dir()
+            path = get_deepspeed_checkpoint_dir(args.save)
             model.save_checkpoint(path)
             # Megatron checkpoint
             save_megatron_checkpoint(iteration, model, optimizer, lr_scheduler)
@@ -352,7 +352,7 @@ def run_training(ckpt_dir='megatron_molbart_checkpoint'):
     print_rank_0('Setting up model ...')
     (model, optimizer, lr_scheduler) = setup_model_and_optimizer(args)
     if ckpt_dir is not None:
-        path = get_deepspeed_checkpoint_dir() if args.deepspeed else args.save
+        path = get_deepspeed_checkpoint_dir(args.save) if args.deepspeed else args.save
         model.load_checkpoint(path)
     print_rank_0('Starting training ...')
     train_dataloader = RepeatingLoader(train_dataloader)
@@ -375,7 +375,7 @@ def load_model():
     initialize_megatron()
     args = get_args()
     (model, optimizer, lr_scheduler) = setup_model_and_optimizer(args)
-    path = get_deepspeed_checkpoint_dir() if args.deepspeed else args.save
+    path = get_deepspeed_checkpoint_dir(args.save) if args.deepspeed else args.save
     ckpt = model.load_checkpoint(path)
 
 
