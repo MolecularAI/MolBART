@@ -27,7 +27,7 @@ from utils import DEFAULT_CHEM_TOKEN_START
 from utils import DEFAULT_VOCAB_PATH
 from utils import DEFAULT_MAX_SEQ_LEN
 from utils import REGEX
-from checkpointing import save_megatron_checkpoint
+from checkpointing import save_megatron_checkpoint, load_deepspeed_iteration
 
 tokenizer = MolEncTokeniser.from_vocab_file(DEFAULT_VOCAB_PATH, REGEX,
         DEFAULT_CHEM_TOKEN_START)
@@ -300,10 +300,10 @@ def train(
     writer = get_tensorboard_writer()
     timers = get_timers()
     model.train()
-    iteration = 0
     timers('interval time').start()
     report_memory_flag = True
-    while iteration < args.train_iters:
+
+    while args.iteration < args.train_iters:
         loss = train_step(
             forward_step_func,
             train_data_iterator,
@@ -313,30 +313,35 @@ def train(
             pipe_parallel_size,
             )
 
-        iteration += 1
-        print_rank_0('Iteration: ' + str(iteration) + '/'
+        args.iteration += 1
+        print_rank_0('Iteration: ' + str(args.iteration) + '/'
                      + str(args.train_iters) + ', Loss: '
                      + str(loss['mask loss'].item()) + ', Acc: '
                      + str(loss['acc']) + ', Num batches: '
                      + str(num_batches_processed) + '/'
                      + str(len(trainloader.loader)) + ', Epoch: '
                      + str(epochs))
+
         if torch.distributed.get_rank() == 0:
-            writer.add_scalar('training mask loss',loss['mask loss'], iteration)
-            writer.add_scalar('training acc',loss['acc'], iteration)
+            writer.add_scalar('training mask loss',loss['mask loss'], args.iteration)
+            writer.add_scalar('training acc',loss['acc'], args.iteration)
+
         # Checkpointing
-        if iteration % args.save_interval == 0:
+        if args.iteration % args.save_interval == 0:
             # Deepspeed checkpoint
             path = get_deepspeed_checkpoint_dir(args.save)
             model.save_checkpoint(path)
             # Megatron checkpoint
-            save_megatron_checkpoint(iteration, model, optimizer, lr_scheduler)
-        if iteration % args.eval_interval == 0:
+            save_megatron_checkpoint(args.iteration, model, optimizer, lr_scheduler)
+
+        # Evaluation
+        if args.iteration % args.eval_interval == 0:
             loss_dict_val= evaluate(forward_step_func, val_data_iterator, model)
             if torch.distributed.get_rank() == 0:
-                writer.add_scalar('validation mask loss',loss_dict_val['mask loss'], iteration)
-                writer.add_scalar('validation acc',loss_dict_val['acc'], iteration)
-    return iteration
+                writer.add_scalar('validation mask loss',loss_dict_val['mask loss'], args.iteration)
+                writer.add_scalar('validation acc',loss_dict_val['acc'], args.iteration)
+
+    return args.iteration
 
 
 
@@ -344,6 +349,7 @@ def run_training(ckpt_dir='megatron_molbart_checkpoint'):
     deepspeed.init_distributed()
     initialize_megatron()
     args = get_args()
+    args.iteration = 0
 
     os.makedirs(args.save, exist_ok=True)
     if args.deepspeed:
@@ -362,6 +368,7 @@ def run_training(ckpt_dir='megatron_molbart_checkpoint'):
     if ckpt_dir is not None:
         path = get_deepspeed_checkpoint_dir(args.save) if args.deepspeed else args.save
         model.load_checkpoint(path)
+        args.iteration = load_deepspeed_iteration(path)
     
     print_rank_0('Starting training ...')
     train_dataloader = RepeatingLoader(train_dataloader)

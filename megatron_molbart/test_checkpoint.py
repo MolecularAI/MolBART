@@ -3,7 +3,7 @@ from pathlib import Path
 import os
 import torch
 
-from megatron import get_args
+from megatron import get_args, print_rank_0
 from megatron.initialize import initialize_megatron
 import megatron.checkpointing as megatron_checkpointing
 from checkpointing import load_checkpoint
@@ -92,6 +92,8 @@ if __name__ == '__main__':
                 iteration = int(fh.read().strip())
         else:
             iteration = int(iteration)
+
+        print_rank_0(f'Loading checkpoint from iteration {iteration}...')
         checkpoint_path = megatron_checkpointing.get_checkpoint_name(args['load'], iteration)
         ckpt = torch.load(checkpoint_path)
         args = ckpt['args']
