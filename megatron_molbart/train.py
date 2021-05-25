@@ -1,3 +1,5 @@
+# coding=utf-8
+
 import numpy as np
 import pickle
 import random
@@ -21,18 +23,19 @@ from megatron.utils import report_memory, reduce_losses
 from megatron.training import evaluate
 from megatron_bart import MegatronBART
 from csv_data import MoleculeDataLoader
+from utils import DEFAULT_CHEM_TOKEN_START
+from utils import DEFAULT_VOCAB_PATH
+from utils import DEFAULT_MAX_SEQ_LEN
+from utils import REGEX
+from checkpointing import save_checkpoint
 
-# from megatron.checkpointing import save_checkpoint
-from checkpointing import save_checkpoint, get_checkpoint_version
-
-DEFAULT_VOCAB_PATH = "bart_vocab.txt"
-DEFAULT_CHEM_TOKEN_START = 272
-REGEX = "\[[^\]]+]|Br?|Cl?|N|O|S|P|F|I|b|c|n|o|s|p|\(|\)|\.|=|#|-|\+|\\\\|\/|:|~|@|\?|>|\*|\$|\%[0-9]{2}|[0-9]"
 tokenizer = MolEncTokeniser.from_vocab_file(DEFAULT_VOCAB_PATH, REGEX,
         DEFAULT_CHEM_TOKEN_START)
 num_batches_processed = 0
 epochs = 0
 
+def get_deepspeed_checkpoint_dir():
+    return os.path.join(*os.path.split(args.save)[:-1], 'deepspeed')
 
 class RepeatingLoader:
 
@@ -323,6 +326,10 @@ def train(
             writer.add_scalar('training acc',loss['acc'], iteration)
         # Checkpointing
         if iteration % args.save_interval == 0:
+            # Deepspeed checkpoint
+            path = get_deepspeed_checkpoint_dir()
+            model.save_checkpoint(path)
+            # Megatron checkpoint
             save_checkpoint(iteration, model, optimizer, lr_scheduler)
         if iteration % args.eval_interval == 0:
             loss_dict_val= evaluate(forward_step_func, val_data_iterator, model)
@@ -345,7 +352,8 @@ def run_training(ckpt_dir='megatron_molbart_checkpoint'):
     print_rank_0('Setting up model ...')
     (model, optimizer, lr_scheduler) = setup_model_and_optimizer(args)
     if ckpt_dir is not None:
-        model.load_checkpoint(args.save)
+        path = get_deepspeed_checkpoint_dir() if args.deepspeed else args.save
+        model.load_checkpoint(path)
     print_rank_0('Starting training ...')
     train_dataloader = RepeatingLoader(train_dataloader)
     val_dataloader = RepeatingLoader(val_dataloader)
@@ -367,7 +375,8 @@ def load_model():
     initialize_megatron()
     args = get_args()
     (model, optimizer, lr_scheduler) = setup_model_and_optimizer(args)
-    ckpt = model.load_checkpoint(args.save)
+    path = get_deepspeed_checkpoint_dir() if args.deepspeed else args.save
+    ckpt = model.load_checkpoint(path)
 
 
 if __name__ == '__main__':
