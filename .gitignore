@@ -1,5 +1,7 @@
 .pytest_cache
 .vscode/
+.ipynb_checkpoints/
+*.tfevents.*
 __pycache__
 lightning_logs
 molbart.egg-info/

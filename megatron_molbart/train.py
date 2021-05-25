@@ -1,43 +1,41 @@
-from molbart.tokeniser import MolEncTokeniser
-#from molbart.util import DEFAULT_CHEM_TOKEN_START
-#from molbart.util import REGEX
-#from molbart.util import DEFAULT_VOCAB_PATH
-from megatron import print_rank_0, get_tensorboard_writer
-from megatron.initialize import initialize_megatron
-from megatron.model import get_params_for_weight_decay_optimization
-from megatron.learning_rates import AnnealingLR
-from megatron import mpu
-from megatron.utils import report_memory
-from megatron.utils import reduce_losses
-from megatron.training import evaluate
-from megatron import get_timers
-from apex.optimizers import FusedAdam as Adam
-from torch.optim import AdamW
-from megatron_bart import MegatronBART
-from molbart.decoder import DecodeSampler
-import deepspeed
-from csv_data import MoleculeDataLoader
-from megatron import get_args
+# coding=utf-8
+
 import numpy as np
 import pickle
-import torch
-from molbart.models.pre_train import BARTModel
 import random
-from deepspeed.utils import RepeatingLoader
 import os
 import argparse
 import pandas as pd
 import sys
+import torch
+from torch.optim import AdamW
 from torch.utils.tensorboard import SummaryWriter
+import deepspeed
+from deepspeed.utils import RepeatingLoader
+from apex.optimizers import FusedAdam as Adam
+from molbart.tokeniser import MolEncTokeniser
+from molbart.decoder import DecodeSampler
+from megatron import print_rank_0, get_tensorboard_writer, get_timers, mpu, get_args
+from megatron.initialize import initialize_megatron
+from megatron.model import get_params_for_weight_decay_optimization
+from megatron.learning_rates import AnnealingLR
+from megatron.utils import report_memory, reduce_losses
+from megatron.training import evaluate
+from megatron_bart import MegatronBART
+from csv_data import MoleculeDataLoader
+from utils import DEFAULT_CHEM_TOKEN_START
+from utils import DEFAULT_VOCAB_PATH
+from utils import DEFAULT_MAX_SEQ_LEN
+from utils import REGEX
+from checkpointing import save_megatron_checkpoint, load_deepspeed_iteration
 
-DEFAULT_VOCAB_PATH = "bart_vocab.txt"
-DEFAULT_CHEM_TOKEN_START = 272
-REGEX = "\[[^\]]+]|Br?|Cl?|N|O|S|P|F|I|b|c|n|o|s|p|\(|\)|\.|=|#|-|\+|\\\\|\/|:|~|@|\?|>|\*|\$|\%[0-9]{2}|[0-9]"
 tokenizer = MolEncTokeniser.from_vocab_file(DEFAULT_VOCAB_PATH, REGEX,
         DEFAULT_CHEM_TOKEN_START)
 num_batches_processed = 0
 epochs = 0
 
+def get_deepspeed_checkpoint_dir(save_dir):
+    return os.path.join(*os.path.split(save_dir)[:-1], 'deepspeed')
 
 class RepeatingLoader:
 
@@ -66,30 +64,6 @@ class RepeatingLoader:
                 epochs += 1
                 num_batches_processed = 0
         return batch
-
-
-def build_model_default(args):
-    VOCAB_SIZE = len(tokenizer)
-    MAX_SEQ_LEN = 512
-    pad_token_idx = tokenizer.vocab[tokenizer.pad_token]
-    sampler = DecodeSampler(tokenizer, MAX_SEQ_LEN)
-
-    model = BARTModel(
-        sampler,
-        pad_token_idx,
-        VOCAB_SIZE,
-        args.hidden_size,
-        args.num_layers,
-        args.num_attention_heads,
-        args.hidden_size * 4,
-        0.1,
-        0.1,
-        'gelu',
-        10000,
-        MAX_SEQ_LEN,
-        dropout=0.1,
-        )
-    return model
 
 
 def build_model(args):
@@ -309,25 +283,6 @@ def train_step(
     return loss_reduced
 
 
-def save_ds_checkpoint(iteration, model, args):
-    """Save a model checkpoint."""
-
-    sd = {}
-    sd['iteration'] = iteration
-
-    # rng states.
-
-    if not args.no_save_rng:
-        sd['random_rng_state'] = random.getstate()
-        sd['np_rng_state'] = np.random.get_state()
-        sd['torch_rng_state'] = torch.get_rng_state()
-        sd['cuda_rng_state'] = torch.cuda.get_rng_state()
-        sd['rng_tracker_states'] = \
-            mpu.get_cuda_rng_tracker().get_states()
-
-    model.save_checkpoint(args.save, client_state=sd)
-
-
 def train(
     forward_step_func,
     model,
@@ -345,10 +300,10 @@ def train(
     writer = get_tensorboard_writer()
     timers = get_timers()
     model.train()
-    iteration = 0
     timers('interval time').start()
     report_memory_flag = True
-    while iteration < args.train_iters:
+
+    while args.iteration < args.train_iters:
         loss = train_step(
             forward_step_func,
             train_data_iterator,
@@ -358,26 +313,35 @@ def train(
             pipe_parallel_size,
             )
 
-        iteration += 1
-        print_rank_0('Iteration: ' + str(iteration) + '/'
+        args.iteration += 1
+        print_rank_0('Iteration: ' + str(args.iteration) + '/'
                      + str(args.train_iters) + ', Loss: '
                      + str(loss['mask loss'].item()) + ', Acc: '
                      + str(loss['acc']) + ', Num batches: '
                      + str(num_batches_processed) + '/'
                      + str(len(trainloader.loader)) + ', Epoch: '
                      + str(epochs))
+
         if torch.distributed.get_rank() == 0:
-            writer.add_scalar('training mask loss',loss['mask loss'], iteration)
-            writer.add_scalar('training acc',loss['acc'], iteration)
+            writer.add_scalar('training mask loss',loss['mask loss'], args.iteration)
+            writer.add_scalar('training acc',loss['acc'], args.iteration)
+
         # Checkpointing
-        if iteration % args.save_interval == 0:
-            save_ds_checkpoint(iteration, model, args)
-        if iteration % args.eval_interval == 0:
+        if args.iteration % args.save_interval == 0:
+            # Deepspeed checkpoint
+            path = get_deepspeed_checkpoint_dir(args.save)
+            model.save_checkpoint(path)
+            # Megatron checkpoint
+            save_megatron_checkpoint(args.iteration, model, optimizer, lr_scheduler)
+
+        # Evaluation
+        if args.iteration % args.eval_interval == 0:
             loss_dict_val= evaluate(forward_step_func, val_data_iterator, model)
             if torch.distributed.get_rank() == 0:
-                writer.add_scalar('validation mask loss',loss_dict_val['mask loss'], iteration)
-                writer.add_scalar('validation acc',loss_dict_val['acc'], iteration)
-    return iteration
+                writer.add_scalar('validation mask loss',loss_dict_val['mask loss'], args.iteration)
+                writer.add_scalar('validation acc',loss_dict_val['acc'], args.iteration)
+
+    return args.iteration
 
 
 
@@ -385,17 +349,27 @@ def run_training(ckpt_dir='megatron_molbart_checkpoint'):
     deepspeed.init_distributed()
     initialize_megatron()
     args = get_args()
+    args.iteration = 0
+
+    os.makedirs(args.save, exist_ok=True)
+    if args.deepspeed:
+        deepspeed_path = get_deepspeed_checkpoint_dir(args.save)
+        os.makedirs(deepspeed_path, exist_ok=True)
+
     print_rank_0('Loading dataset(s) ...')
     path = os.path.dirname(os.path.realpath(__file__))
-    # loader = MoleculeDataLoader(path + '/test_data/chembl_subset.csv',
-    #                             batch_size=256, num_workers=32)
     loader = MoleculeDataLoader(args.dataset_path,
                                 batch_size=args.batch_size, num_workers=32)
     (train_dataloader, val_dataloader) = loader.get_data()
+    
     print_rank_0('Setting up model ...')
     (model, optimizer, lr_scheduler) = setup_model_and_optimizer(args)
+
     if ckpt_dir is not None:
-        model.load_checkpoint(args.save)
+        path = get_deepspeed_checkpoint_dir(args.save) if args.deepspeed else args.save
+        model.load_checkpoint(path)
+        args.iteration = load_deepspeed_iteration(path)
+    
     print_rank_0('Starting training ...')
     train_dataloader = RepeatingLoader(train_dataloader)
     val_dataloader = RepeatingLoader(val_dataloader)
@@ -417,7 +391,8 @@ def load_model():
     initialize_megatron()
     args = get_args()
     (model, optimizer, lr_scheduler) = setup_model_and_optimizer(args)
-    ckpt = model.load_checkpoint(args.save)
+    path = get_deepspeed_checkpoint_dir(args.save) if args.deepspeed else args.save
+    ckpt = model.load_checkpoint(path)
 
 
 if __name__ == '__main__':

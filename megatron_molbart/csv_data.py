@@ -3,16 +3,16 @@ from torch.utils.data import Dataset
 from megatron import get_args
 from pysmilesutils.augment import MolRandomizer, SMILESRandomizer
 from pysmilesutils.datautils import BucketBatchSampler
+from utils import DEFAULT_CHEM_TOKEN_START
+from utils import DEFAULT_VOCAB_PATH
+from utils import DEFAULT_MAX_SEQ_LEN
+from utils import REGEX
 from molbart.tokeniser import MolEncTokeniser
-#from molbart.util import DEFAULT_CHEM_TOKEN_START
-#from molbart.util import DEFAULT_VOCAB_PATH
-#from molbart.util import DEFAULT_MAX_SEQ_LEN
-#from molbart.util import REGEX
 from molbart.util import load_tokeniser
+from molbart.data.util import TokenSampler
 from rdkit import Chem
 import numpy as np
 import pandas
-from molbart.data.util import TokenSampler
 from megatron.data.samplers import DistributedBatchSampler
 from megatron import mpu
 import torch
@@ -22,13 +22,10 @@ import os
 import sys
 import random
 
-DEFAULT_VOCAB_PATH = "bart_vocab.txt"
-DEFAULT_CHEM_TOKEN_START = 272
-REGEX = "\[[^\]]+]|Br?|Cl?|N|O|S|P|F|I|b|c|n|o|s|p|\(|\)|\.|=|#|-|\+|\\\\|\/|:|~|@|\?|>|\*|\$|\%[0-9]{2}|[0-9]"
-DEFAULT_MAX_SEQ_LEN = 512
+
 tokenizer = MolEncTokeniser.from_vocab_file(DEFAULT_VOCAB_PATH, REGEX,
         DEFAULT_CHEM_TOKEN_START)
-max_seq_len = 512
+max_seq_len = DEFAULT_MAX_SEQ_LEN
 
 
 def check_seq_len(tokens, mask):
