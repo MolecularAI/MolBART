@@ -3,7 +3,7 @@
 #SBATCH --ntasks 1 
 #SBATCH --ntasks-per-node 1 
 #SBATCH --gpus-per-node 1 
-#SBATCH --time=1:00:00
+#SBATCH --time=0:45:00
 #SBATCH --partition interactive 
 #SBATCH --account ent_joc_model_mpnn_pyt
 #SBATCH --job-name megamolbart
@@ -31,6 +31,7 @@ export MEGATRON_CONFIG_PATH=${CONFIG_DIR}/config_megatron_checkpoint.sh
 DATA_MOUNT=/data
 CONFIG_MOUNT=/config
 CHECKPOINT_MOUNT=/checkpoints
+MEGATRON_CHECKPOINT_MOUNT=${CHECKPOINT_MOUNT}/megatron
 DEEPSPEED_CONFIG_MOUNT=/deepspeed_config
 TENSORBOARD_MOUNT=/tensorboard
 WORKDIR=/opt/MolBART
@@ -44,7 +45,6 @@ NODE_RANK=$SLURM_NODEID
 
 script_path=$(realpath $0)
 script_dir=$(dirname $script_path)
-source $MEGATRON_CONFIG_PATH
 
 export GPUS_PER_NODE=${SLURM_GPUS_PER_NODE}
 export WORLD_SIZE=$(($GPUS_PER_NODE*$NNODES))
@@ -68,7 +68,7 @@ PROFILE=false
 ### MEGATRON ###
 
 export NOW=`date '+%F_%H:%M:%S'`
-
+source $MEGATRON_CONFIG_PATH
 megatron_options=" \
 --model-parallel-size ${mp_size} \
 --pipe-parallel-size ${pp_size} \
@@ -95,7 +95,7 @@ megatron_options=" \
 --save-interval ${save_interval} \
 --eval-interval ${eval_interval} \
 --eval-iters ${eval_iters} \
---save ${checkpoint_directory} \
+--save ${MEGATRON_CHECKPOINT_MOUNT} \
 --fp16 \
 --tensorboard-dir ${TENSORBOARD_MOUNT}"
 
