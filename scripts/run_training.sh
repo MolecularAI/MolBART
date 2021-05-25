@@ -1,20 +1,14 @@
 #!/bin/bash -l
-#SBATCH --nodes 1 
-#SBATCH --ntasks 1 
-#SBATCH --ntasks-per-node 1 
-#SBATCH --gpus-per-node 1 
-#SBATCH --time=0:45:00
-#SBATCH --partition interactive 
+#SBATCH --nodes 4 
+#SBATCH --ntasks 32 
+#SBATCH --ntasks-per-node 8 
+#SBATCH --gpus-per-node 8 
+#SBATCH --time=8:00:00
+#SBATCH --partition batch
 #SBATCH --account ent_joc_model_mpnn_pyt
 #SBATCH --job-name megamolbart
 #SBATCH --output runlog_batch.log
 
-#### SBATCH --nodes 4
-#### SBATCH --ntasks 32
-#### SBATCH --ntasks-per-node 8
-#### SBATCH --gpus-per-node 8
-#### SBATCH --time=8:00:00
-#### SBATCH --partition batch
 
 ### CONFIG ###
 CONTAINER="nvcr.io#nvidian/clara-lifesciences/megamolbart:latest"
