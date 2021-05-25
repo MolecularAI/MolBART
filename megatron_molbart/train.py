@@ -344,16 +344,25 @@ def run_training(ckpt_dir='megatron_molbart_checkpoint'):
     deepspeed.init_distributed()
     initialize_megatron()
     args = get_args()
+
+    os.makedirs(args.save, exist_ok=True)
+    if args.deepspeed:
+        deepspeed_path = get_deepspeed_checkpoint_dir(args.save)
+        os.makedirs(deepspeed_path, exist_ok=True)
+
     print_rank_0('Loading dataset(s) ...')
     path = os.path.dirname(os.path.realpath(__file__))
     loader = MoleculeDataLoader(args.dataset_path,
                                 batch_size=args.batch_size, num_workers=32)
     (train_dataloader, val_dataloader) = loader.get_data()
+    
     print_rank_0('Setting up model ...')
     (model, optimizer, lr_scheduler) = setup_model_and_optimizer(args)
+
     if ckpt_dir is not None:
         path = get_deepspeed_checkpoint_dir(args.save) if args.deepspeed else args.save
         model.load_checkpoint(path)
+    
     print_rank_0('Starting training ...')
     train_dataloader = RepeatingLoader(train_dataloader)
     val_dataloader = RepeatingLoader(val_dataloader)
