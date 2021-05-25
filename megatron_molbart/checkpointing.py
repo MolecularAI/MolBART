@@ -33,7 +33,7 @@ def unwrap_model(model, module_instances=(torchDDP)):
     return unwrapped_model
 
 
-def save_checkpoint(iteration, model, optimizer, lr_scheduler):
+def save_megatron_checkpoint(iteration, model, optimizer, lr_scheduler):
     """Save a model checkpoint."""
     args = get_args()
     
@@ -85,6 +85,7 @@ def save_checkpoint(iteration, model, optimizer, lr_scheduler):
     torch.distributed.barrier()
 
 
+# TODO -- currently not used. Is this needed?
 def load_checkpoint(model, optimizer, lr_scheduler, load_arg='load', strict=True):
     """Load a model checkpoint and return the iteration.
     strict (bool): whether to strictly enforce that the keys in
@@ -234,97 +235,3 @@ def load_checkpoint(model, optimizer, lr_scheduler, load_arg='load', strict=True
                  f'at iteration {iteration}')
 
     return iteration
-
-## MY VERSION
-# def save_checkpoint(iteration, model, optimizer, lr_scheduler):
-#     """Save a model checkpoint."""
-#     args = get_args()
-
-#     # Only rank zero of the data parallel writes to the disk.
-#     model = utils.unwrap_model(model)
-
-#     print_rank_0('saving checkpoint at iteration {:7d} to {}'.format(
-#         iteration, args.save))
-
-#     if not torch.distributed.is_initialized() or mpu.get_data_parallel_rank() == 0:
-
-#         # Arguments, iteration, and model.
-#         state_dict = {}
-#         state_dict['args'] = args
-#         state_dict['checkpoint_version'] = 3.0
-#         state_dict['iteration'] = iteration
-
-#         if isinstance(model, DeepSpeedEngine):
-#             state_dict['model'] = model.module.state_dict_for_save_checkpoint()
-#         elif len(model) == 1:
-#             state_dict['model'] = model[0].state_dict_for_save_checkpoint()
-#         else:
-#             for i in range(len(model)):
-#                 mpu.set_virtual_pipeline_model_parallel_rank(i)
-#                 state_dict['model%d' % i] = model[i].state_dict_for_save_checkpoint()
-
-#         # Optimizer stuff.
-#         if not args.no_save_optim:
-#             if optimizer is not None:
-#                 state_dict['optimizer'] = optimizer.state_dict()
-#             if lr_scheduler is not None:
-#                 state_dict['lr_scheduler'] = lr_scheduler.state_dict()
-
-#         # RNG states.
-#         if not args.no_save_rng:
-#             state_dict['random_rng_state'] = random.getstate()
-#             state_dict['np_rng_state'] = np.random.get_state()
-#             state_dict['torch_rng_state'] = torch.get_rng_state()
-#             state_dict['cuda_rng_state'] = torch.cuda.get_rng_state()
-#             state_dict['rng_tracker_states'] \
-#                 = mpu.get_cuda_rng_tracker().get_states()
-
-#         # Save.
-#         checkpoint_name = get_checkpoint_name(args.save, iteration)
-#         ensure_directory_exists(checkpoint_name)
-#         torch.save(state_dict, checkpoint_name)
-
-#     # Wait so everyone is done (necessary)
-#     if torch.distributed.is_initialized():
-#         torch.distributed.barrier()
-
-#     print_rank_0('  successfully saved checkpoint at iteration {:7d} to {}'.format(
-#         iteration, args.save))
-
-#     # And update the latest iteration
-#     if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
-#         tracker_filename = get_checkpoint_tracker_filename(args.save)
-#         with open(tracker_filename, 'w') as f:
-#             f.write(str(iteration))
-
-#     # Wait so everyone is done (not necessary)
-#     if torch.distributed.is_initialized():
-#         torch.distributed.barrier()
-
-# def get_checkpoint_name(checkpoints_path, iteration,
-#                         release=False, mp_rank=None):
-#     """A unified checkpoint name."""
-#     if release:
-#         directory = 'release'
-#     else:
-#         directory = 'iter_{:07d}'.format(iteration)
-    
-#     if hasattr(mpu, 'get_pipeline_model_parallel_world_size'):
-#         # Use both the tensor and pipeline MP rank.
-#         if mpu.get_pipeline_model_parallel_world_size() == 1:
-#             save_path = os.path.join(checkpoints_path, directory,
-#                                 'mp_rank_{:02d}'.format(
-#                                     mpu.get_tensor_model_parallel_rank()),
-#                                 'model_optim_rng.pt')
-#         else:
-#             save_path = os.path.join(checkpoints_path, directory,
-#                             'mp_rank_{:02d}_{:03d}'.format(
-#                                 mpu.get_tensor_model_parallel_rank(),
-#                                 mpu.get_pipeline_model_parallel_rank()),
-#                             'model_optim_rng.pt')
-#     else:
-#         save_path = os.path.join(checkpoints_path, directory,
-#                                 'mp_rank_{:02d}'.format(
-#                                     mpu.get_model_parallel_rank() if mp_rank is None
-#                                     else mp_rank),
-#                                 'model_optim_rng.pt')

@@ -27,7 +27,7 @@ from utils import DEFAULT_CHEM_TOKEN_START
 from utils import DEFAULT_VOCAB_PATH
 from utils import DEFAULT_MAX_SEQ_LEN
 from utils import REGEX
-from checkpointing import save_checkpoint
+from checkpointing import save_megatron_checkpoint
 
 tokenizer = MolEncTokeniser.from_vocab_file(DEFAULT_VOCAB_PATH, REGEX,
         DEFAULT_CHEM_TOKEN_START)
@@ -330,7 +330,7 @@ def train(
             path = get_deepspeed_checkpoint_dir()
             model.save_checkpoint(path)
             # Megatron checkpoint
-            save_checkpoint(iteration, model, optimizer, lr_scheduler)
+            save_megatron_checkpoint(iteration, model, optimizer, lr_scheduler)
         if iteration % args.eval_interval == 0:
             loss_dict_val= evaluate(forward_step_func, val_data_iterator, model)
             if torch.distributed.get_rank() == 0:
