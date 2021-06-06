@@ -9,13 +9,23 @@ import numpy as np
 
 import torch
 from torch.nn.parallel import DistributedDataParallel as torchDDP
-from deepspeed.runtime.engine import DeepSpeedEngine
 from megatron import (get_args,
                       mpu,
                       print_rank_0)
 import megatron.checkpointing as megatron_checkpointing
 
 _CHECKPOINT_VERSION = None
+
+
+def use_model_module(model):
+    use_module = isinstance(model, torchDDP)
+    try:
+        from deepspeed.runtime.engine import DeepSpeedEngine
+    except:
+        pass
+    else:
+        use_model = use_model | isinstance(model, DeepSpeedEngine)
+    return use_model
 
 
 def unwrap_model(model, module_instances=(torchDDP)):
@@ -38,8 +48,9 @@ def save_megatron_checkpoint(iteration, model, optimizer, lr_scheduler):
     args = get_args()
     
     # Only rank zero of the data parallel writes to the disk.
-    if isinstance(model, torchDDP) or isinstance(model, DeepSpeedEngine):
+    if use_model_module(model):
         model = model.module
+
     if mpu.get_data_parallel_rank() == 0:
 
         # Arguments, iteration, and model.
@@ -98,12 +109,12 @@ def load_deepspeed_iteration(checkpoint_path):
     return iteration
 
 
-def load_checkpoint(model, optimizer, lr_scheduler, load_arg='load'):
+def load_checkpoint(model, optimizer, lr_scheduler, load_arg='load', iteration=0):
     """Load a model checkpoint and return the iteration."""
     args = get_args()
     load_dir = getattr(args, load_arg)
 
-    if isinstance(model, torchDDP) or isinstance(model, DeepSpeedEngine):
+    if use_model_module(model):
         model = model.module
     # Read the tracker file and set the iteration.
     tracker_filename = megatron_checkpointing.get_checkpoint_tracker_filename(load_dir)
@@ -118,18 +129,19 @@ def load_checkpoint(model, optimizer, lr_scheduler, load_arg='load'):
 
     # Otherwise, read the tracker file and either set the iteration or
     # mark it as a release checkpoint.
-    iteration = 0
-    release = False
-    with open(tracker_filename, 'r') as f:
-        metastring = f.read().strip()
-        try:
-            iteration = int(metastring)
-        except ValueError:
-            release = metastring == 'release'
-            if not release:
-                print_rank_0('ERROR: Invalid metadata file {}. Exiting'.format(
-                    tracker_filename))
-                sys.exit()
+    if (not release) and (iteration == 0):
+        # iteration = 0
+        # release = False
+        with open(tracker_filename, 'r') as f:
+            metastring = f.read().strip()
+            try:
+                iteration = int(metastring)
+            except ValueError:
+                release = metastring == 'release'
+                if not release:
+                    print_rank_0('ERROR: Invalid metadata file {}. Exiting'.format(
+                        tracker_filename))
+                    sys.exit()
 
     assert iteration > 0 or release, 'error parsing metadata file {}'.format(
         tracker_filename)
@@ -233,7 +245,7 @@ def load_checkpoint(model, optimizer, lr_scheduler, load_arg='load'):
 # TODO -- sample code to convert a DeepSpeed checkpoint to a Megatron one
 # Code is untested with model parallel formats
 def convert_deepspeeed_checkpoint_to_megatron(checkpoint_dir, iteration):
-    """Convert a DeepPpeed checkpoint to a Megatron one"""
+    """Convert a DeepSpeed checkpoint to a Megatron one"""
     args = get_args()
 
     # Setup paths
@@ -258,6 +270,7 @@ def convert_deepspeeed_checkpoint_to_megatron(checkpoint_dir, iteration):
     # state_dict['checkpoint_version'] = 2.0
 
     torch.save(state_dict, output_path)
+
 
 # # Previous version for saving DeepSpeed checkpoints
 # def save_ds_checkpoint(iteration, model, args):
