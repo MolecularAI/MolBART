@@ -130,8 +130,6 @@ def load_checkpoint(model, optimizer, lr_scheduler, load_arg='load', iteration=0
     # Otherwise, read the tracker file and either set the iteration or
     # mark it as a release checkpoint.
     if (not release) and (iteration == 0):
-        # iteration = 0
-        # release = False
         with open(tracker_filename, 'r') as f:
             metastring = f.read().strip()
             try:
@@ -215,7 +213,7 @@ def load_checkpoint(model, optimizer, lr_scheduler, load_arg='load', iteration=0
     # Check arguments.
     if 'args' in state_dict:
         checkpoint_args = state_dict['args']
-        # check_checkpoint_args(checkpoint_args) # Disabled this due to a few missing checkpoints
+        # check_checkpoint_args(checkpoint_args) # Disabled this due to a few missing checkpoint arguments
     else:
         print_rank_0('could not find arguments in the checkpoint ...')
 
