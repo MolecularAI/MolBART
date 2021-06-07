@@ -57,3 +57,14 @@ The `train_megatron.sh` bash script in the top level of the repository can be ru
 ```save```: Output model checkpoint directory name <br>
 
 The default `train_megatron.sh` script in this repository runs the original 12 million parameter MolBART model on 4 GPUs and a single node on the ChEMBL dataset.
+
+### Model and Data Parallelism Gotchas
+
+- Number of GPUs need to be a multiple of the MP size
+- World size = No. of GPUS * No. Nodes / MP size
+- DeepSpeed requires that the train batch size = world size * mini batch size * gradient accumulation steps
+- The parameter MP_size indicates number of GPUs model is split across for model parallelism
+-- Example: 12 GPUs with MP size = 4; data parallelism size will be 3 and there will be one copy of the model for each 4 GPUs  
+
+
+
