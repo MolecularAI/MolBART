@@ -66,6 +66,6 @@ The default `train_megatron.sh` script in this repository runs the original 12 m
 - The parameter MP_size indicates number of GPUs model is split across for model parallelism
   - Example: 12 GPUs with MP size = 4; data parallelism size will be 3 and there will be one copy of the model for each 4 GPUs  
 
-![Example of model parallelism](mp.png)[50]
+![Example of model parallelism](mp.png)[width=50%]
 
 
