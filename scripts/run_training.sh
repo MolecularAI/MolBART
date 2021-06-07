@@ -1,24 +1,24 @@
 #!/bin/bash -l
-#SBATCH --nodes 4 
-#SBATCH --ntasks 32 
+#SBATCH --nodes 2
+#SBATCH --ntasks 16 
 #SBATCH --ntasks-per-node 8 
 #SBATCH --gpus-per-node 8 
-#SBATCH --time=8:00:00
+#SBATCH --time=1:00:00
 #SBATCH --partition batch
-#SBATCH --account ent_joc_model_mpnn_pyt
+#SBATCH --account wwfo_sae_cb1
 #SBATCH --job-name megamolbart
 #SBATCH --output runlog_batch.log
 
 
 ### CONFIG ###
 CONTAINER="nvcr.io#nvidian/clara-lifesciences/megamolbart:latest"
-STORAGE_DIR="/gpfs/fs1/projects/ent_joc/users/mgill/megatron"
+STORAGE_DIR="/gpfs/fs1/projects/wwfo_sae/users/hsirelkhatim/megamolbart"
 DATA_DIR=${STORAGE_DIR}/data/zinc_csv
 CONFIG_DIR=${STORAGE_DIR}/config
 CHECKPOINT_DIR=${STORAGE_DIR}/checkpoints
 DEEPSPEED_CONFIG_DIR=${STORAGE_DIR}/config
 TENSORBOARD_DIR=${STORAGE_DIR}/tensorboard
-MEGAMOLBART_CODE_DIR=${STORAGE_DIR}/code/MolBART
+MEGAMOLBART_CODE_DIR=${STORAGE_DIR}/MolBART
 export MEGATRON_CONFIG_PATH=${CONFIG_DIR}/config_megatron.sh
 
 DATA_MOUNT=/data
@@ -154,6 +154,8 @@ srun \
 --container-image ${CONTAINER} \
 --container-mounts ${MOUNTS} \
 --container-workdir ${WORKDIR} \
+--nv-meta ml-model.dlss \
+--comment "prolog:(dcgm)" \
 python megatron_molbart/train.py --deepspeed --deepspeed_mpi ${full_options}
 
 set +x

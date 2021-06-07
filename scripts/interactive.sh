@@ -2,14 +2,14 @@
 
 ### CONFIG ###
 CONTAINER="nvcr.io#nvidian/clara-lifesciences/megamolbart:latest"
-STORAGE_DIR="/gpfs/fs1/projects/ent_joc/users/mgill/megatron"
+STORAGE_DIR="/gpfs/fs1/projects/wwfo_sae/users/hsirelkhatim/megamolbart"
 # DATA_DIR=${STORAGE_DIR}/data/zinc_csv
-DATA_DIR=${STORAGE_DIR}/data/zinc_csv_small
+DATA_DIR=${STORAGE_DIR}/data/zinc_csv
 CONFIG_DIR=${STORAGE_DIR}/config
 CHECKPOINT_DIR=${STORAGE_DIR}/checkpoints
 DEEPSPEED_CONFIG_DIR=${STORAGE_DIR}/config
 TENSORBOARD_DIR=${STORAGE_DIR}/tensorboard
-MEGAMOLBART_CODE_DIR=${STORAGE_DIR}/code/MolBART
+MEGAMOLBART_CODE_DIR=${STORAGE_DIR}/MolBART
 #export MEGATRON_CONFIG_PATH=${CONFIG_DIR}/config_megatron.sh
 export MEGATRON_CONFIG_PATH=${CONFIG_DIR}/config_megatron_checkpoint.sh
 
@@ -125,7 +125,7 @@ fi
 
 srun \
 --pty \
---account ent_joc_model_mpnn_pyt \
+--account wwfo_sae_cb1 \
 --partition interactive \
 --export=full_options="${full_options}" \
 --mpi=pmix \
@@ -136,5 +136,7 @@ srun \
 --container-image ${CONTAINER} \
 --container-mounts ${MOUNTS} \
 --container-workdir ${WORKDIR} \
+--nv-meta ml-model.dlss \
+--comment "prolog:(dcgm)" \
 bash
 # Inside container: python megatron_molbart/train.py --deepspeed --deepspeed_mpi ${full_options}
