@@ -64,7 +64,7 @@ The default `train_megatron.sh` script in this repository runs the original 12 m
 - World size = No. of GPUS * No. Nodes / MP size
 - DeepSpeed requires that the train batch size = world size * mini batch size * gradient accumulation steps
 - The parameter MP_size indicates number of GPUs model is split across for model parallelism
--- Example: 12 GPUs with MP size = 4; data parallelism size will be 3 and there will be one copy of the model for each 4 GPUs  
+  - Example: 12 GPUs with MP size = 4; data parallelism size will be 3 and there will be one copy of the model for each 4 GPUs  
 
 
 
