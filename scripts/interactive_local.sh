@@ -1,5 +1,6 @@
 #!/bin/bash -l
 
+##### Training / development on a local machine
 ### CONFIRMED WORKING ON A GV100 WITH 32GB RAM
 
 ### CONFIG ###
@@ -12,7 +13,7 @@ CHECKPOINT_DIR=${STORAGE_DIR}/checkpoints
 DEEPSPEED_CONFIG_DIR=${CODE_DIR}/config
 TENSORBOARD_DIR=${STORAGE_DIR}/tensorboard
 MEGAMOLBART_CODE_DIR=${CODE_DIR}
-export MEGATRON_CONFIG_PATH=${CONFIG_DIR}/config_megatron_checkpoint.sh
+export MEGATRON_CONFIG_PATH=${CONFIG_DIR}/config_megatron.sh
 
 DATA_MOUNT=/data
 CONFIG_MOUNT=/config
@@ -21,7 +22,7 @@ MEGATRON_CHECKPOINT_MOUNT=${CHECKPOINT_MOUNT}/megatron
 DEEPSPEED_CONFIG_MOUNT=/deepspeed_config
 TENSORBOARD_MOUNT=/tensorboard
 WORKDIR=/opt/MolBART
-CONFIG_DEEPSPEED_JSON_MOUNT=${DEEPSPEED_CONFIG_MOUNT}/config_deepspeed_checkpoint.json
+CONFIG_DEEPSPEED_JSON_MOUNT=${DEEPSPEED_CONFIG_MOUNT}/config_deepspeed.json
 
 
 ### ZeRO CONFIG ###
@@ -135,4 +136,4 @@ ${MOUNTS} \
 -e TF_CPP_MIN_LOG_LEVEL=3 \
 -e full_options="${full_options}" \
 ${CONTAINER} bash
-# Inside container: python megatron_molbart/train.py --deepspeed --deepspeed_mpi ${full_options}
+# Inside container run: python megatron_molbart/train.py --deepspeed --deepspeed_mpi ${full_options}
