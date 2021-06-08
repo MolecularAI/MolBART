@@ -9,6 +9,7 @@
 #SBATCH --job-name megamolbart
 #SBATCH --output runlog_batch.log
 
+##### Multi-node training on SLURM
 
 ### CONFIG ###
 CONTAINER="nvcr.io#nvidian/clara-lifesciences/megamolbart:latest"
