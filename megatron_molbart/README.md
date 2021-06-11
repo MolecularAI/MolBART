@@ -73,6 +73,7 @@ The default `train_megatron.sh` script in this repository runs the original 12 m
 - Example: for 12 GPUs with `mp_size` = 4, there will be three copies of the model (data parallelism) and each model will occupy four GPUs (model parallelism)
 - The parameter `WORLD_SIZE` is calculated in the SLURM training script. It must be equal to: No. of GPUS * No. Nodes / MP size
 - In the DeepSpeed config file, the parameter `train_batch_size` = `WORLD_SIZE` * `train_micro_batch_size_per_gpu` * `gradient_accumulation_steps`
+- If training will need to resume from a checkpoint, ensure that the number of iterations is set at least as large as what will be needed. Learning rate scaling depends on the maximum iteration number and is enabled by default. It will cause an error if the iteration number is increased beyond it's original value.
 
 
 <img src="mp.png" alt="model and data parallelism" width="700"/>
