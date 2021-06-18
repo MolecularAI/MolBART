@@ -11,4 +11,3 @@ saved_models/
 notebooks/data/
 notebooks/.ipynb_checkpoints/
 notebooks/playground.ipynb
-megatron_molbart/test_data/chembl_subset.csv
