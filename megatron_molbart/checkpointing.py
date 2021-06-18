@@ -18,7 +18,7 @@ _CHECKPOINT_VERSION = None
 
 
 def use_model_module(model):
-    use_module = isinstance(model, torchDDP)
+    use_model = isinstance(model, torchDDP)
     try:
         from deepspeed.runtime.engine import DeepSpeedEngine
     except:
