@@ -38,11 +38,15 @@ This file contains a simple data loader for csv files that have SMILES strings o
 
 This file contains the training code that sets up Megatron and DeepSpeed and runs the training loop. Currently, the code loads in a subset of ChEMBL in CSV format and runs training (line 320). Replace this file with your own data.
 
-### ds_config.json
+### DeepSpeed Config File
 
-*NOTE:* this file is the original (legacy) version of the DeepSpeed configuration. Updated versions are located in the `config` directory in the base level of the repo.
+The config file `config_deepspeed.json` is located in the `config` directory in the base level of the repo.
 
-This file contains the parameters for DeepSpeed (important). Notably, all of the parameters in this file should probably be kept the same except ```train_batch_size``` and ```train_micro_batch_size_per_gpu```. These parameters can be modified to improve training speed; generally, the larger batch sizes lead to much faster training. During training, DeepSpeed prints out the number of samples being processed per second (```SamplesPerSec```), which can be used a proxy for determining how fast training is.
+These file contains the parameters for DeepSpeed (important). Notably, all of the parameters in this file should probably be kept the same except `train_batch_size` and `train_micro_batch_size_per_gpu`. These parameters can be modified to improve training speed; generally, the larger batch sizes lead to much faster training. During training, DeepSpeed prints out the number of samples being processed per second (`SamplesPerSec`), which can be used a proxy for determining how fast training is.
+
+### Megatraon Config File
+
+The config file `config_megatron.sh` is located in the `config` directory in the base level of the repo.
 
 ### Kicking off Training 
 
@@ -50,17 +54,17 @@ This file contains the parameters for DeepSpeed (important). Notably, all of the
 
 The `train_megatron.sh` bash script in the top level of the repository can be run to kick off training. Important parameters in this script include:
 
-```GPUS_PER_NODE```: Number of GPUs to use per node  
-```NNODES```: Number of nodes to run DeepSpeed with  
-```MASTER_ADDR```: Distributed training address (must be changed for SLURM/Multi-Node setting)  
-```MASTER_PORT```: Distributed training port (must be changed for SLURM/Multi-Node setting)  
-```NODE_RANK```: Must be changed for SLURM/Multi-Node setting  
-```mp_size```: Model parallelism size  
-```--num-layers```: Number of hidden layers in Encoder and Decoder  
-```--hidden-size```: Hidden dimension in Encoder and Decoder  
-```--num-attention-heads```: Number of attention heads in Encoder and Decoder  
-```train-iters```: How many training iterations  
-```save```: Output model checkpoint directory name  
+`GPUS_PER_NODE`: Number of GPUs to use per node  
+`NNODES`: Number of nodes to run DeepSpeed with  
+`MASTER_ADDR`: Distributed training address (must be changed for SLURM/Multi-Node setting)  
+`MASTER_PORT`: Distributed training port (must be changed for SLURM/Multi-Node setting)  
+`NODE_RANK`: Must be changed for SLURM/Multi-Node setting  
+`mp_size`: Model parallelism size  
+`--num-layers`: Number of hidden layers in Encoder and Decoder  
+`--hidden-size`: Hidden dimension in Encoder and Decoder  
+`--num-attention-heads`: Number of attention heads in Encoder and Decoder  
+`train-iters`: How many training iterations  
+`save`: Output model checkpoint directory name  
 
 The default `train_megatron.sh` script in this repository runs the original 12 million parameter MolBART model on 4 GPUs and a single node on the ChEMBL dataset.
 
@@ -76,7 +80,7 @@ The default `train_megatron.sh` script in this repository runs the original 12 m
 - If training will need to resume from a checkpoint, ensure that the number of iterations is set at least as large as what will be needed. Learning rate scaling depends on the maximum iteration number and is enabled by default. It will cause an error if the iteration number is increased beyond it's original value.
 
 
-<img src="mp.png" alt="model and data parallelism" width="700"/>
+<img src="assets/mp.png" alt="model and data parallelism" width="700"/>
 
 Diagram source: https://medium.com/@esaliya/model-parallelism-in-deep-learning-is-not-what-you-think-94d2f81e82ed
 

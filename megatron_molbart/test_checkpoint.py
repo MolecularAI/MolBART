@@ -6,41 +6,18 @@ import torch
 from megatron import get_args, print_rank_0
 from megatron.initialize import initialize_megatron
 import megatron.checkpointing as megatron_checkpointing
-from checkpointing import load_checkpoint
 
 from megatron_bart import MegatronBART
-from utils import DEFAULT_CHEM_TOKEN_START
-from utils import DEFAULT_VOCAB_PATH
-from utils import DEFAULT_MAX_SEQ_LEN
-from utils import REGEX
-
-from molbart.decoder import DecodeSampler
-from molbart.tokeniser import MolEncTokeniser
-
-CHECKPOINTS_DIR = '/checkpoints/megatron'
-
-
-def load_tokenizer(tokenizer_vocab_path):
-    """Load tokenizer from vocab file
-    Params:
-        tokenizer_vocab_path: str, path to tokenizer vocab
-    Returns:
-        MolEncTokeniser tokenizer object
-    """
-
-    tokenizer_vocab_path = Path(tokenizer_vocab_path)
-    tokenizer = MolEncTokeniser.from_vocab_file(
-        tokenizer_vocab_path,
-        REGEX,
-        DEFAULT_CHEM_TOKEN_START)
-
-    return tokenizer
+from checkpointing import load_checkpoint
+from util import DEFAULT_CHEM_TOKEN_START, DEFAULT_VOCAB_PATH, DEFAULT_MAX_SEQ_LEN, REGEX, CHECKPOINTS_DIR
+from decoder import DecodeSampler
+from tokenizer import load_tokenizer
 
 
 def load_model(tokenizer, max_seq_len, args):
     """Load saved model checkpoint
     Params:
-        tokenizer: MolEncTokeniser tokenizer object
+        tokenizer: MolEncTokenizer tokenizer object
         max_seq_len: int, maximum sequence length
         args: Megatron initialized arguments
     Returns:
@@ -98,6 +75,6 @@ if __name__ == '__main__':
         ckpt = torch.load(checkpoint_path)
         args = ckpt['args']
 
-        tokenizer = load_tokenizer(DEFAULT_VOCAB_PATH)
+        tokenizer = load_tokenizer(vocab_path=DEFAULT_VOCAB_PATH, chem_token_start=DEFAULT_CHEM_TOKEN_START, regex=REGEX)
         model = load_model(tokenizer, DEFAULT_MAX_SEQ_LEN, args)
     
