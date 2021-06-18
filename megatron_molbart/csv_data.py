@@ -1,34 +1,24 @@
+from pathlib import Path
+import os
+import numpy as np
+import pandas as pd
+
 import torch
 from torch.utils.data import Dataset
-from megatron import get_args
-from pysmilesutils.augment import MolRandomizer, SMILESRandomizer
-from pysmilesutils.datautils import BucketBatchSampler
-from utils import DEFAULT_CHEM_TOKEN_START
-from utils import DEFAULT_VOCAB_PATH
-from utils import DEFAULT_MAX_SEQ_LEN
-from utils import REGEX
-from molbart.tokeniser import MolEncTokeniser
-from molbart.util import load_tokeniser
-from molbart.data.util import TokenSampler
 from rdkit import Chem
-import numpy as np
-import pandas
+
+from pysmilesutils.augment import SMILESRandomizer
+
 from megatron.data.samplers import DistributedBatchSampler
-from megatron import mpu
-import torch
-from pathlib import Path
-import pandas as pd
-import os
-import sys
-import random
+from megatron import mpu, get_args
+
+from util import DEFAULT_CHEM_TOKEN_START, DEFAULT_VOCAB_PATH, DEFAULT_MAX_SEQ_LEN, REGEX
+from tokenizer import load_tokenizer
+
+default_tokenizer = load_tokenizer(vocab_path=DEFAULT_VOCAB_PATH, chem_token_start=DEFAULT_CHEM_TOKEN_START, regex=REGEX)
 
 
-tokenizer = MolEncTokeniser.from_vocab_file(DEFAULT_VOCAB_PATH, REGEX,
-        DEFAULT_CHEM_TOKEN_START)
-max_seq_len = DEFAULT_MAX_SEQ_LEN
-
-
-def check_seq_len(tokens, mask):
+def check_seq_len(tokens, mask, max_seq_len=DEFAULT_MAX_SEQ_LEN):
     """ Warn user and shorten sequence if the tokens are too long, otherwise return original
 
     Args:
@@ -53,9 +43,9 @@ def collate_fn(batch):
 
     encoder_smiles = [x['encoder_smiles'][0] for x in batch]
     decoder_smiles = [x['decoder_smiles'][0] for x in batch]
-    enc_token_output = tokenizer.tokenise(encoder_smiles, mask=True,
+    enc_token_output = default_tokenizer.tokenize(encoder_smiles, mask=True,
             pad=True)
-    dec_token_output = tokenizer.tokenise(decoder_smiles, pad=True)
+    dec_token_output = default_tokenizer.tokenize(decoder_smiles, pad=True)
 
     enc_mask = enc_token_output['masked_pad_masks']
     enc_tokens = enc_token_output['masked_tokens']
@@ -65,8 +55,8 @@ def collate_fn(batch):
     (enc_tokens, enc_mask) = check_seq_len(enc_tokens, enc_mask)
     (dec_tokens, dec_mask) = check_seq_len(dec_tokens, dec_mask)
 
-    enc_token_ids = tokenizer.convert_tokens_to_ids(enc_tokens)
-    dec_token_ids = tokenizer.convert_tokens_to_ids(dec_tokens)
+    enc_token_ids = default_tokenizer.convert_tokens_to_ids(enc_tokens)
+    dec_token_ids = default_tokenizer.convert_tokens_to_ids(dec_tokens)
     enc_token_ids = torch.tensor(enc_token_ids).transpose(0, 1)
     enc_pad_mask = torch.tensor(enc_mask,
                                 dtype=torch.int64).transpose(0, 1)
@@ -138,7 +128,10 @@ class MoleculeDataLoader(object):
         file_path,
         batch_size=32,
         num_buckets=20,
-        num_workers=32
+        num_workers=32,
+        vocab_path=DEFAULT_VOCAB_PATH, 
+        chem_token_start=DEFAULT_CHEM_TOKEN_START, 
+        regex=REGEX
         ):
 
         path = Path(file_path)
@@ -146,11 +139,10 @@ class MoleculeDataLoader(object):
             self.df = self._read_dir_df(file_path)
         else:
             self.df = pd.read_csv(path)
-        #self.df = pandas.read_csv(file_path)
+
         train_dataset = MoleculeDataset(self.df, split='train', zinc=True)
         val_dataset = MoleculeDataset(self.df, split='val', zinc=True)
-        self.tokeniser = load_tokeniser(DEFAULT_VOCAB_PATH, DEFAULT_CHEM_TOKEN_START)
-
+        self.tokenizer = load_tokenizer(vocab_path, chem_token_start, regex)
 
         world_size = \
             torch.distributed.get_world_size(group=mpu.get_data_parallel_group())

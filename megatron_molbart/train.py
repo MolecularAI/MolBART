@@ -7,30 +7,30 @@ import os
 import argparse
 import pandas as pd
 import sys
+
 import torch
 from torch.optim import AdamW
 from torch.utils.tensorboard import SummaryWriter
+
 import deepspeed
 from deepspeed.utils import RepeatingLoader
+
 from apex.optimizers import FusedAdam as Adam
-from molbart.tokeniser import MolEncTokeniser
-from molbart.decoder import DecodeSampler
 from megatron import print_rank_0, get_tensorboard_writer, get_timers, mpu, get_args
 from megatron.initialize import initialize_megatron
 from megatron.model import get_params_for_weight_decay_optimization
 from megatron.learning_rates import AnnealingLR
 from megatron.utils import report_memory, reduce_losses
 from megatron.training import evaluate
+
 from megatron_bart import MegatronBART
+from tokenizer import load_tokenizer
+from decoder import DecodeSampler
 from csv_data import MoleculeDataLoader
-from utils import DEFAULT_CHEM_TOKEN_START
-from utils import DEFAULT_VOCAB_PATH
-from utils import DEFAULT_MAX_SEQ_LEN
-from utils import REGEX
+from util import DEFAULT_CHEM_TOKEN_START, DEFAULT_VOCAB_PATH, DEFAULT_MAX_SEQ_LEN, REGEX
 from checkpointing import save_megatron_checkpoint, load_deepspeed_iteration
 
-tokenizer = MolEncTokeniser.from_vocab_file(DEFAULT_VOCAB_PATH, REGEX,
-        DEFAULT_CHEM_TOKEN_START)
+tokenizer = load_tokenizer(vocab_path=DEFAULT_VOCAB_PATH, chem_token_start=DEFAULT_CHEM_TOKEN_START, regex=REGEX)
 num_batches_processed = 0
 epochs = 0
 

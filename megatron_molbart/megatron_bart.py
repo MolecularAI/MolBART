@@ -633,7 +633,7 @@ class MegatronBART(MegatronModule):
 
         Args:
             token_output (Tensor of shape (seq_len, batch_size, vocab_size)): token output from transformer
-            target (Tensor of shape (seq_len, batch_size)): Original (unmasked) SMILES token ids from the tokeniser
+            target (Tensor of shape (seq_len, batch_size)): Original (unmasked) SMILES token ids from the tokenizer
             target_mask (Tensor of shape (seq_len, batch_size)): Pad mask for target tokens
 
         Output:

@@ -18,7 +18,7 @@ _CHECKPOINT_VERSION = None
 
 
 def use_model_module(model):
-    use_module = isinstance(model, torchDDP)
+    use_model = isinstance(model, torchDDP)
     try:
         from deepspeed.runtime.engine import DeepSpeedEngine
     except:
@@ -129,7 +129,8 @@ def load_checkpoint(model, optimizer, lr_scheduler, load_arg='load', iteration=0
 
     # Otherwise, read the tracker file and either set the iteration or
     # mark it as a release checkpoint.
-    if (not release) and (iteration == 0):
+    release = False
+    if iteration == 0:
         with open(tracker_filename, 'r') as f:
             metastring = f.read().strip()
             try:

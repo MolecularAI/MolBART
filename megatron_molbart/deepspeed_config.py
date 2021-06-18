@@ -3,6 +3,8 @@ import json
 import sys
 from megatron import print_rank_0
 
+# TODO cleanup or remove
+
 if '__name__' == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--batch_size',  type=int)
