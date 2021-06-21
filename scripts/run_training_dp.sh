@@ -7,9 +7,9 @@
 #SBATCH --partition batch
 #SBATCH --account ent_joc_model_mpnn_pyt
 #SBATCH --job-name megamolbart
-#SBATCH --output runlog_batch.log
+#SBATCH --output runlog_batch_dp.log
 
-##### Multi-node training on SLURM
+##### Multi-node training on SLURM -- data parallel version
 # Tested in a variety of multi-node, data parallel and model parallel settings
 
 ### CONFIG ###
@@ -21,7 +21,7 @@ CHECKPOINT_DIR=${STORAGE_DIR}/checkpoints
 DEEPSPEED_CONFIG_DIR=${STORAGE_DIR}/config
 TENSORBOARD_DIR=${STORAGE_DIR}/tensorboard
 MEGAMOLBART_CODE_DIR=${STORAGE_DIR}/code/MolBART
-export MEGATRON_CONFIG_PATH=${CONFIG_DIR}/config_megatron.sh
+export MEGATRON_CONFIG_PATH=${CONFIG_DIR}/config_megatron_dp.sh
 
 DATA_MOUNT=/data
 CONFIG_MOUNT=/config
@@ -30,7 +30,7 @@ MEGATRON_CHECKPOINT_MOUNT=${CHECKPOINT_MOUNT}/megatron
 DEEPSPEED_CONFIG_MOUNT=/deepspeed_config
 TENSORBOARD_MOUNT=/tensorboard
 WORKDIR=/opt/MolBART
-CONFIG_DEEPSPEED_JSON_MOUNT=${DEEPSPEED_CONFIG_MOUNT}/config_deepspeed.json
+CONFIG_DEEPSPEED_JSON_MOUNT=${DEEPSPEED_CONFIG_MOUNT}/config_deepspeed_dp.json
 
 # Change for multinode config
 export MASTER_PORT=6000
