@@ -12,7 +12,7 @@ CHECKPOINT_DIR=${STORAGE_DIR}/checkpoints
 DEEPSPEED_CONFIG_DIR=${STORAGE_DIR}/config
 TENSORBOARD_DIR=${STORAGE_DIR}/tensorboard
 MEGAMOLBART_CODE_DIR=${STORAGE_DIR}/code/MolBART
-export MEGATRON_CONFIG_PATH=${CONFIG_DIR}/config_megatron_mp.sh
+export MEGATRON_CONFIG_PATH=${CONFIG_DIR}/config_megatron.sh
 
 DATA_MOUNT=/data
 CONFIG_MOUNT=/config
@@ -21,7 +21,7 @@ MEGATRON_CHECKPOINT_MOUNT=${CHECKPOINT_MOUNT}/megatron
 DEEPSPEED_CONFIG_MOUNT=/deepspeed_config
 TENSORBOARD_MOUNT=/tensorboard
 WORKDIR=/opt/MolBART
-CONFIG_DEEPSPEED_JSON_MOUNT=${DEEPSPEED_CONFIG_MOUNT}/config_deepspeed_mp.json
+CONFIG_DEEPSPEED_JSON_MOUNT=${DEEPSPEED_CONFIG_MOUNT}/config_deepspeed.json
 
 
 ### ZeRO CONFIG ###
@@ -130,9 +130,9 @@ srun \
 --export=full_options="${full_options}" \
 --mpi=pmix \
 --nodes 1 \
---ntasks 2 \
---ntasks-per-node 2 \
---gpus-per-node 2 \
+--ntasks 1 \
+--ntasks-per-node 1 \
+--gpus-per-node 1 \
 --container-image ${CONTAINER} \
 --container-mounts ${MOUNTS} \
 --container-workdir ${WORKDIR} \
