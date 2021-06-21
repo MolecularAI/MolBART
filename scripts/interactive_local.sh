@@ -1,7 +1,7 @@
 #!/bin/bash -l
 
-##### Training / development on a local machine
-### CONFIRMED WORKING ON A GV100 WITH 32GB RAM
+##### Training / development with Docker
+# Tested only with single node, single GPU configuration
 
 ### CONFIG ###
 CONTAINER="nvcr.io/nvidian/clara-lifesciences/megamolbart:latest"

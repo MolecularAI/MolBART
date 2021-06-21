@@ -1,6 +1,7 @@
 #!/bin/bash -l
 
 ##### Interactive training / development on a cluster with SLURM
+# Tested only with single node, single GPU configuration
 
 ### CONFIG ###
 CONTAINER="nvcr.io#nvidian/clara-lifesciences/megamolbart:latest"
