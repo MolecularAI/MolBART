@@ -1,8 +1,8 @@
 export mp_size=1
 export pp_size=0
-export num_layers=200
-export hidden_size=512
-export num_attention_heads=32
+export num_layers=4
+export hidden_size=256
+export num_attention_heads=8
 export seq_length=512
 export max_position_embeddings=512
 export batch_size=1
