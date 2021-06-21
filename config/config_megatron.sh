@@ -1,4 +1,4 @@
-export mp_size=16
+export mp_size=1
 export pp_size=0
 export num_layers=200
 export hidden_size=512
