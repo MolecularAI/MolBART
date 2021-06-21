@@ -1,6 +1,7 @@
 #!/bin/bash -l
 
 ##### Interactive training / development on a cluster with SLURM
+# Tested only with single node, single GPU configuration
 
 ### CONFIG ###
 CONTAINER="nvcr.io#nvidian/clara-lifesciences/megamolbart:latest"
@@ -43,7 +44,7 @@ source $MEGATRON_CONFIG_PATH
 megatron_options=" \
 --model-parallel-size ${mp_size} \
 --pipe-parallel-size ${pp_size} \
---dataset_path ${dataset_path} \
+--dataset_path ${DATA_MOUNT} \
 --num-layers ${num_layers} \
 --hidden-size ${hidden_size} \
 --num-attention-heads ${num_attention_heads} \

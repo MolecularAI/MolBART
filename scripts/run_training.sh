@@ -1,8 +1,8 @@
 #!/bin/bash -l
 #SBATCH --nodes 4 
+#SBATCH --gpus-per-node 8 
 #SBATCH --ntasks 32 
 #SBATCH --ntasks-per-node 8 
-#SBATCH --gpus-per-node 8 
 #SBATCH --time=8:00:00
 #SBATCH --partition batch
 #SBATCH --account ent_joc_model_mpnn_pyt
@@ -10,6 +10,7 @@
 #SBATCH --output runlog_batch.log
 
 ##### Multi-node training on SLURM
+# Tested in a variety of multi-node, data parallel and model parallel settings
 
 ### CONFIG ###
 CONTAINER="nvcr.io#nvidian/clara-lifesciences/megamolbart:latest"
