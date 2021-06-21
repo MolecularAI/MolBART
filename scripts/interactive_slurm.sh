@@ -44,7 +44,7 @@ source $MEGATRON_CONFIG_PATH
 megatron_options=" \
 --model-parallel-size ${mp_size} \
 --pipe-parallel-size ${pp_size} \
---dataset_path ${dataset_path} \
+--dataset_path ${DATA_MOUNT} \
 --num-layers ${num_layers} \
 --hidden-size ${hidden_size} \
 --num-attention-heads ${num_attention_heads} \
@@ -130,9 +130,9 @@ srun \
 --export=full_options="${full_options}" \
 --mpi=pmix \
 --nodes 1 \
---ntasks 1 \
---ntasks-per-node 1 \
---gpus-per-node 1 \
+--ntasks 2 \
+--ntasks-per-node 2 \
+--gpus-per-node 2 \
 --container-image ${CONTAINER} \
 --container-mounts ${MOUNTS} \
 --container-workdir ${WORKDIR} \
