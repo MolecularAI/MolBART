@@ -1,16 +1,16 @@
 #!/bin/bash -l
-#SBATCH --nodes 4 
-#SBATCH --gpus-per-node 8 
-#SBATCH --ntasks 32 
+#SBATCH --nodes 2
+#SBATCH --ntasks 16 
 #SBATCH --ntasks-per-node 8 
+#SBATCH --gpus-per-node 8 
 #SBATCH --time=8:00:00
 #SBATCH --partition batch
 #SBATCH --account ent_joc_model_mpnn_pyt
 #SBATCH --job-name megamolbart
 #SBATCH --output runlog_batch_dp.log
 
-##### Multi-node training on SLURM -- data parallel version
-# Tested in a variety of multi-node data parallel settings
+##### Multi-node training on SLURM -- model parallel version
+# Tested in a variety of multi-node, data parallel and model parallel settings
 
 ### CONFIG ###
 CONTAINER="nvcr.io#nvidian/clara-lifesciences/megamolbart:latest"
@@ -21,7 +21,7 @@ CHECKPOINT_DIR=${STORAGE_DIR}/checkpoints
 DEEPSPEED_CONFIG_DIR=${STORAGE_DIR}/config
 TENSORBOARD_DIR=${STORAGE_DIR}/tensorboard
 MEGAMOLBART_CODE_DIR=${STORAGE_DIR}/code/MolBART
-export MEGATRON_CONFIG_PATH=${CONFIG_DIR}/config_megatron_dp.sh
+export MEGATRON_CONFIG_PATH=${CONFIG_DIR}/config_megatron_mp.sh
 
 DATA_MOUNT=/data
 CONFIG_MOUNT=/config
@@ -30,7 +30,7 @@ MEGATRON_CHECKPOINT_MOUNT=${CHECKPOINT_MOUNT}/megatron
 DEEPSPEED_CONFIG_MOUNT=/deepspeed_config
 TENSORBOARD_MOUNT=/tensorboard
 WORKDIR=/opt/MolBART
-CONFIG_DEEPSPEED_JSON_MOUNT=${DEEPSPEED_CONFIG_MOUNT}/config_deepspeed_dp.json
+CONFIG_DEEPSPEED_JSON_MOUNT=${DEEPSPEED_CONFIG_MOUNT}/config_deepspeed_mp.json
 
 # Change for multinode config
 export MASTER_PORT=6000
@@ -156,6 +156,8 @@ srun \
 --container-image ${CONTAINER} \
 --container-mounts ${MOUNTS} \
 --container-workdir ${WORKDIR} \
+--nv-meta ml-model.dlss \
+--comment "prolog:(dcgm)" \
 python megatron_molbart/train.py --deepspeed --deepspeed_mpi ${full_options}
 
 set +x
