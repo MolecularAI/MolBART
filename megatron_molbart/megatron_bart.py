@@ -1,7 +1,7 @@
+# coding=utf-8
+
 from megatron.module import MegatronModule
-from megatron.initialize import initialize_megatron
 from apex.normalization import FusedLayerNorm
-from megatron import print_rank_0
 from megatron import mpu
 from torch.nn import init
 import torch.nn as nn
