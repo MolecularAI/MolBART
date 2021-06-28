@@ -5,8 +5,6 @@ import torch
 from tokenizer import MolEncTokenizer
 from util import REGEX as regex
 
-# regex = r"""\[[^\]]+]|Br?|Cl?|N|O|S|P|F|I|b|c|n|o|s|p|\(|\)|\.|=|#|-|\+|\\\\|\/|:|~|@|\?|>|\*|\$|\%[0-9]{2}|[0-9]"""
-
 # Use dummy SMILES strings
 smiles_data = [
     "CCO.Ccc",
@@ -19,7 +17,7 @@ example_tokens = [
     ["^", "C", "C", "<SEP>", "C", "Br", "&"]
 ]
 
-# This only applies when all tests run in same order, so these are now set per test
+# Setting seed here only applies when all tests run in same order, so these are now set per test
 SEED = 0
 
 def test_create_vocab():
@@ -74,6 +72,7 @@ def test_mask_tokens_empty_mask():
 
 
 # Run tests which require random masking first so we get deterministic masking
+# NB: ordered running no longer required, this is kept for compatiiblity with previous versions
 @pytest.mark.order(1)
 def test_mask_tokens_replace():
     random.seed(a=1)
