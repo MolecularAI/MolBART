@@ -1,3 +1,5 @@
+# coding=utf-8
+
 import torch
 from unittest.mock import patch, MagicMock, call
 from megatron_molbart.decoder import DecodeSampler
