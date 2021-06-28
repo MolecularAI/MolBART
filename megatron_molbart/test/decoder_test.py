@@ -25,7 +25,7 @@ def test_sort_beams():
     assert exp_log_lhs == sorted_log_lhs
 
 
-@patch("megatron_molbart.tokenizer.MolEncTokenizer")
+@patch("tokenizer.MolEncTokenizer")
 def test_greedy_calls_decode(tokenizer):
     max_seq_len = 3
     batch_size = 4
@@ -44,7 +44,7 @@ def test_greedy_calls_decode(tokenizer):
     assert len(decode_fn.call_args_list) == expected_calls
 
 
-@patch("megatron_molbart.tokenizer.MolEncTokenizer")
+@patch("tokenizer.MolEncTokenizer")
 def test_greedy_chooses_max(tokenizer):
     max_seq_len = 3
     batch_size = 1
@@ -78,7 +78,7 @@ def test_greedy_chooses_max(tokenizer):
     tokenizer.convert_ids_to_tokens.assert_called_once_with(exp_tokens)
 
 
-@patch("megatron_molbart.tokenizer.MolEncTokenizer")
+@patch("tokenizer.MolEncTokenizer")
 def test_greedy_stops_at_end_token(tokenizer):
     max_seq_len = 3
     batch_size = 1
@@ -103,7 +103,7 @@ def test_greedy_stops_at_end_token(tokenizer):
     assert len(decode_fn.call_args_list) == expected_calls
 
 
-@patch("megatron_molbart.tokenizer.MolEncTokenizer")
+@patch("tokenizer.MolEncTokenizer")
 def test_greedy_lls(tokenizer):
     max_seq_len = 3
     batch_size = 1
@@ -128,7 +128,7 @@ def test_greedy_lls(tokenizer):
     assert log_lhs[0] == expected_log_lhs
 
 
-@patch("megatron_molbart.tokenizer.MolEncTokenizer")
+@patch("tokenizer.MolEncTokenizer")
 def test_beam_calls_decode(tokenizer):
     max_seq_len = 3
     batch_size = 4
@@ -150,7 +150,7 @@ def test_beam_calls_decode(tokenizer):
     assert len(decode_fn.call_args_list) == expected_calls
 
 
-@patch("megatron_molbart.tokenizer.MolEncTokenizer")
+@patch("tokenizer.MolEncTokenizer")
 def test_beam_chooses_correct_tokens(tokenizer):
     max_seq_len = 4
     batch_size = 1
@@ -186,7 +186,7 @@ def test_beam_chooses_correct_tokens(tokenizer):
     assert beam_2_token_ids == exp_tokens_2
 
 
-@patch("megatron_molbart.tokenizer.MolEncTokenizer")
+@patch("tokenizer.MolEncTokenizer")
 def test_beam_stops_at_end_token(tokenizer):
     max_seq_len = 4
     batch_size = 1
@@ -222,7 +222,7 @@ def test_beam_stops_at_end_token(tokenizer):
     assert beam_2_token_ids == exp_tokens_2
 
 
-@patch("megatron_molbart.tokenizer.MolEncTokenizer")
+@patch("tokenizer.MolEncTokenizer")
 def test_beam_lls(tokenizer):
     max_seq_len = 4
     batch_size = 1
