@@ -1,3 +1,7 @@
+# coding=utf-8
+
+# TODO convert this to a test?
+
 """Test loading of a Megatron checkpoint"""
 from pathlib import Path
 import os

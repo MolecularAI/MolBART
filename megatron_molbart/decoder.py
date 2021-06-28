@@ -1,3 +1,5 @@
+# coding=utf-8
+
 import torch
 from rdkit import Chem, RDLogger
 from util import DEFAULT_MAX_SEQ_LEN

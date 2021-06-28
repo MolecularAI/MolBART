@@ -5,6 +5,7 @@
 __pycache__
 lightning_logs
 molbart.egg-info/
+**/.ipython/*
 slurm/
 tb_logs/
 saved_models/
