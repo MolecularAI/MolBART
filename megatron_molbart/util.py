@@ -1,8 +1,6 @@
 # coding=utf-8
 
 # Paths
-# CHECKPOINTS_DIR = '/checkpoints/megatron'
-# DEFAULT_VOCAB_PATH = "bart_vocab.txt"
 DEFAULT_VOCAB_PATH = '/models/megamolbart/bart_vocab.txt'
 CHECKPOINTS_DIR = '/models/megamolbart/checkpoints'
 
