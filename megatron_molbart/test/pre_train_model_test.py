@@ -4,7 +4,7 @@ import random
 
 from megatron_molbart.decoder import DecodeSampler
 from megatron_molbart.tokenizer import MolEncTokenizer
-from megatron_molbart.megatron_molbart import MegatronBART
+from megatron_molbart.megatron_bart import MegatronBART
 
 regex = r"""\[[^\]]+]|Br?|Cl?|N|O|S|P|F|I|b|c|n|o|s|p|\(|\)|\.|=|#|-|\+|\\\\|\/|:|~|@|\?|>|\*|\$|\%[0-9]{2}|[0-9]"""
 
@@ -27,10 +27,6 @@ model_args = {
     "num_layers": 2,
     "num_heads": 1,
     "d_feedforward": 32,
-    "lr": 0.0001,
-    "weight_decay": 0.0,
-    "activation": "gelu",
-    "num_steps": 1000,
     "max_seq_len": 40
 }
 
