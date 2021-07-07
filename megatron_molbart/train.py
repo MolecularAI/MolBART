@@ -237,9 +237,9 @@ def eval_step(data_iterator, model):
 
     # Forward model.
 
-    val_ouputs = model.module.validation_step(batch)
-    invalid_smiles = val_ouputs['val_invalid_smiles']
-    val_loss = val_outpus['val_loss']
+    val_outputs = model.module.validation_step(batch)
+    invalid_smiles = val_outputs['val_invalid_smiles']
+    val_loss = val_outputs['val_loss']
     token_acc = val_outputs['val_token_acc']
     val_perplexity= val_outputs['val_perplexity']
     val_molecular_accuracy= val_outputs['val_molecular_accuracy']
