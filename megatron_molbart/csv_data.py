@@ -9,7 +9,7 @@ import torch
 from torch.utils.data import Dataset
 from rdkit import Chem
 
-from pysmilesutils.augment import SMILESRandomizer
+from pysmilesutils.augment import SMILESAugmenter
 
 from megatron.data.samplers import DistributedBatchSampler
 from megatron import mpu, get_args
@@ -94,7 +94,7 @@ class MoleculeDataset(Dataset):
         else:     
             self.mols = df['canonical_smiles'].tolist()
         
-        self.aug = SMILESRandomizer()
+        self.aug = SMILESAugmenter()
         val_idxs = df.index[df['set'] == 'val'].tolist()
         test_idxs = df.index[df['set'] == 'test'].tolist()
         idxs = set(range(len(df.index)))
