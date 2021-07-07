@@ -159,9 +159,10 @@ DOCKER_CMD="docker run \
     -e TF_CPP_MIN_LOG_LEVEL=3 \
     -w /workspace"
 
+DATE=$(date +%y%m%d)
+
 build() {
     set -e
-    DATE=$(date +%y%m%d)
     
     echo "Building MegaMolBART training container..."
     docker build --no-cache --network host \
@@ -194,7 +195,7 @@ pull() {
 dev() {
 
     set -x
-    DOCKER_CMD="${DOCKER_CMD} -v /home/mgill/storage/data/az/megamolbart/checkpoints/megatron:/models/megamolbart/checkpoints"
+    DOCKER_CMD="${DOCKER_CMD} -v ${PROJECT_PATH}/megamolbart/checkpoints/megatron:/models/megamolbart/checkpoints"
     ${DOCKER_CMD} -it ${MEGAMOLBART_CONT} bash
     exit
 }

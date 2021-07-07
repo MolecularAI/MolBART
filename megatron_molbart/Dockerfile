@@ -25,11 +25,9 @@ RUN cd /tmp/apex/ \
         --disable-pip-version-check --no-cache-dir \
         --global-option="--cpp_ext" --global-option="--cuda_ext" ./
 
-## PySMILES # TODO: Replace the following lines once the repo is available.
-RUN wget --quiet -O /tmp/pysmilesutils-mirror.tgz \
-    http://rilango-work.nvidia.com/molbart/pysmilesutils-mirror.tgz \
-    && tar xzf /tmp/pysmilesutils-mirror.tgz -C /opt \
-    && cd /opt/pysmilesutils-mirror; pip install .
+## PySMILES -- requirements handled by conda environment
+RUN git clone https://github.com/MolecularAI/pysmilesutils.git --branch master /opt/pysmilesutils \
+    && cd /opt/pysmilesutils; pip install .
 
 ## MegaMolBART and Megatron code
 RUN git clone https://${GITHUB_ACCESS_TOKEN}@${MEGAMOLBART_REPO} --branch ${MEGAMOLBART_BRANCH} /opt/MolBART \
