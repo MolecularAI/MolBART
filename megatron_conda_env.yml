@@ -115,4 +115,3 @@ dependencies:
     - werkzeug==1.0.1
     - yarl==1.6.3
     - zipp==3.4.0
-prefix: /home/rmohan/anaconda3/envs/az
