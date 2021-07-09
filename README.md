@@ -1,6 +1,6 @@
 # MolBART
 
-The MolBART project aims to pre-train a BART transformer language model [[1]](#1) on molecular SMILES strings [[2]](#2) by optimising a de-noising objective. We hypothesise that pre-training will lead to improved generalisation, performance, training speed and validity on downstream fine-tuned tasks. We intend to test the pre-trained model on downstream tasks such as reaction prediction, retrosynthetic prediction, molecular optimisation and molecular property prediction.
+The MolBART project aims to pre-train a BART transformer language model [[2]](#2) on molecular SMILES strings [[4]](#4) by optimising a de-noising objective[[2]](#2) as well as a chemical format transformation specific to the SMILES language (heteroencoding)[[3]](#3). Pre-training lead to improved generalisation, performance, training speed and validity on downstream fine-tuned tasks. The approach has been tested on downstream tasks such as reaction prediction, retrosynthetic prediction, molecular optimisation and molecular property prediction[[1]](#1).
 
 
 ## Installation
@@ -65,11 +65,21 @@ To run on multiple GPUs use the `--gpus <num>` argument for the train or fine tu
 ## References
 
 <a id="1">[1]</a>
-Lewis, Mike, et al.
-"Bart: Denoising sequence-to-sequence pre-training for natural language generation, translation, and comprehension."
-arXiv preprint arXiv:1910.13461 (2019).
+Ross Irwin, Spyridon Dimitriadis, Jiazhen He, and Esben Jannik Bjerrum, 
+"Chemformer: A Pre-Trained Transformer for Computational Chemistry", 
+ChemRXiv (2021)
 
 <a id="2">[2]</a>
-Weininger, David.
-"SMILES, a chemical language and information system. 1. Introduction to methodology and encoding rules."
+Lewis, Mike, et al., 
+"Bart: Denoising sequence-to-sequence pre-training for natural language generation, translation, and comprehension.", 
+arXiv preprint arXiv:1910.13461 (2019).
+
+<a id="3">[3]</a>
+Esben J Bjerrum and Boris Sattarov, 
+“Improving Chemical Autoencoder Latent Space and Molecular De Novo Generation Diversity with Heteroencoders”, 
+Biomolecules, (2018) [http://doi.org/10.3390/biom8040131](http://doi.org/10.3390/biom8040131)
+
+<a id="4">[4]</a>
+Weininger, David., 
+"SMILES, a chemical language and information system. 1. Introduction to methodology and encoding rules.", 
 Journal of chemical information and computer sciences 28.1 (1988): 31-36.
