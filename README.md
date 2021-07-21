@@ -1,6 +1,6 @@
 # MolBART
 
-The MolBART project aims to pre-train a BART transformer language model [[2]](#2) on molecular SMILES strings [[4]](#4) by optimising a de-noising objective[[2]](#2) as well as a chemical format transformation specific to the SMILES language (heteroencoding)[[3]](#3). Pre-training lead to improved generalisation, performance, training speed and validity on downstream fine-tuned tasks. The approach has been tested on downstream tasks such as reaction prediction, retrosynthetic prediction, molecular optimisation and molecular property prediction[[1]](#1).
+The MolBART project aims to pre-train a BART transformer language model [[2]](#2) on molecular SMILES strings [[4]](#4) by optimising a de-noising objective[[2]](#2) as well as a chemical format transformation specific to the SMILES language (heteroencoding)[[3]](#3). Pre-training lead to improved generalisation, performance, training speed and validity on downstream fine-tuned tasks. The project has also been called Chemformer, and the approach has been tested on downstream tasks such as reaction prediction, retrosynthetic prediction, molecular optimisation and molecular property prediction[[1]](#1).
 
 
 ## Installation
