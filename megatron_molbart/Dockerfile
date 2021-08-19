@@ -1,12 +1,10 @@
 FROM nvcr.io/nvidia/pytorch:20.11-py3
-ARG GITHUB_ACCESS_TOKEN
-ARG MEGAMOLBART_REPO="github.com/MolecularAI/MolBART.git"
 ARG MEGAMOLBART_BRANCH="megatron-molbart-with-zinc"
-ARG MEGAMOLBART_CHECKPOINT="megamolbart_checkpoints_20210427.tgz"
 
 ENV UCX_LOG_LEVEL error
 ENV PATH /opt/conda/bin:$PATH
 ENV CUDA_HOME /usr/local/cuda
+ENV TERM xterm
 SHELL ["/bin/bash", "-c"]
 RUN echo "source activate base" > /etc/bash.bashrc
 
@@ -30,15 +28,10 @@ RUN git clone https://github.com/MolecularAI/pysmilesutils.git --branch master /
     && cd /opt/pysmilesutils; pip install .
 
 ## MegaMolBART and Megatron code
-RUN git clone https://${GITHUB_ACCESS_TOKEN}@${MEGAMOLBART_REPO} --branch ${MEGAMOLBART_BRANCH} /opt/MolBART \
+RUN git clone https://github.com/MolecularAI/MolBART.git --branch ${MEGAMOLBART_BRANCH} /opt/MolBART \
     && cd /opt/MolBART/megatron_molbart/Megatron-LM-v1.1.5-3D_parallelism && pip install . \
-    && cd /opt/MolBART; pip install .
+    && cd /opt/MolBART; pip install . \
+    && mkdir -p /models/megamolbart \
+    && cp /opt/MolBART/bart_vocab.txt /models/megamolbart/bart_vocab.txt
 ENV PYTHONPATH /opt/MolBART/megatron_molbart:/opt/MolBART
-
-## MegaMolBART checkpoint and vocab -- TODO: update checkpoint
-RUN mkdir -p /models/megamolbart \
-    && wget --quiet -O /tmp/${MEGAMOLBART_CHECKPOINT} \
-    http://rilango-work.nvidia.com/megatron_molbart/${MEGAMOLBART_CHECKPOINT} \
-    && cp /opt/MolBART/bart_vocab.txt /models/megamolbart/bart_vocab.txt \
-    && tar xzf /tmp/${MEGAMOLBART_CHECKPOINT} -C /models/megamolbart
 

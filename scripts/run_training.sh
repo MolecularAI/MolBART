@@ -1,19 +1,24 @@
 #!/bin/bash -l
-#SBATCH --nodes 4 
-#SBATCH --gpus-per-node 8 
-#SBATCH --ntasks 32 
-#SBATCH --ntasks-per-node 8 
+#SBATCH --nodes 2 
+#SBATCH --ntasks 32
+#SBATCH --gpus-per-node 16  
+#SBATCH --ntasks-per-node 16s 
 #SBATCH --time=8:00:00
 #SBATCH --partition batch
 #SBATCH --account ent_joc_model_mpnn_pyt
 #SBATCH --job-name megamolbart
 #SBATCH --output runlog_batch.log
+#SBATCH --nv-meta ml-model.megamolbart,dcgm_opt_out.yes
+#SBATCH --mem=0                 # all mem avail
+#SBATCH --mail-type=FAIL        # only send email on failure
+#SBATCH --overcommit            # Needed for pytorch
+#SBATCH --exclusive             # exclusive node access
 
 ##### Multi-node training on SLURM
 # Tested in a variety of multi-node, data parallel and model parallel settings
 
 ### CONFIG ###
-CONTAINER="nvcr.io#nvidian/clara-lifesciences/megamolbart:latest"
+CONTAINER="nvcr.io#nvidian/clara-lifesciences/megamolbart:210813"
 STORAGE_DIR="/gpfs/fs1/projects/ent_joc/users/mgill/megatron"
 DATA_DIR=${STORAGE_DIR}/data/zinc_csv
 CONFIG_DIR=${STORAGE_DIR}/config
