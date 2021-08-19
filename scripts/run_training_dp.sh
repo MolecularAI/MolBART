@@ -20,17 +20,10 @@
 # Tested in a variety of multi-node data parallel settings
 
 set -x
-### Load config from local env file
-source .env
-if [[ $? -ne 0 ]]; then
-    echo CONTAINER="nvcr.io#nvidian/clara-lifesciences/megamolbart:210623" >> .env
-    echo STORAGE_DIR=$(pwd) >> .env
-    source .env
-fi
 
 ### CONFIG ###
-CONTAINER="nvcr.io#nvidian/clara-lifesciences/megamolbart:210813"
-STORAGE_DIR="/gpfs/fs1/projects/ent_joc/users/mgill/megatron"
+CONTAINER="FIXME"
+STORAGE_DIR="FIXME"
 DATA_DIR=${STORAGE_DIR}/data/zinc_csv
 CONFIG_DIR=${STORAGE_DIR}/config
 CHECKPOINT_DIR=${STORAGE_DIR}/checkpoints/${SLURM_JOB_NAME}

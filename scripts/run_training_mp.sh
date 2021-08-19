@@ -18,8 +18,8 @@
 # Tested in a variety of multi-node, data parallel and model parallel settings
 
 ### CONFIG ###
-CONTAINER="nvcr.io#nvidian/clara-lifesciences/megamolbart:210813"
-STORAGE_DIR="/gpfs/fs1/projects/ent_joc/users/mgill/megatron"
+CONTAINER="FIXME"
+STORAGE_DIR="FIXME"
 DATA_DIR=${STORAGE_DIR}/data/zinc_csv
 CONFIG_DIR=${STORAGE_DIR}/config
 CHECKPOINT_DIR=${STORAGE_DIR}/checkpoints

@@ -4,9 +4,9 @@
 # Tested only with single node, single GPU configuration
 
 ### CONFIG ###
-CONTAINER="nvcr.io/nvidian/clara-lifesciences/megamolbart:latest"
-STORAGE_DIR="/home/mgill/storage/megatron"
-CODE_DIR="/home/mgill/code/MolBART"
+CONTAINER="FIXME"
+STORAGE_DIR="/storage/megatron"
+CODE_DIR="/code/MolBART"
 DATA_DIR=${STORAGE_DIR}/data/zinc_csv_small # First ten data files
 CONFIG_DIR=${CODE_DIR}/config
 CHECKPOINT_DIR=${STORAGE_DIR}/checkpoints
