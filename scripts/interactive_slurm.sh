@@ -4,8 +4,8 @@
 # Tested only with single node, single GPU configuration
 
 ### CONFIG ###
-CONTAINER="nvcr.io#nvidian/clara-lifesciences/megamolbart:latest"
-STORAGE_DIR="/gpfs/fs1/projects/ent_joc/users/mgill/megatron"
+CONTAINER="FIXME"
+STORAGE_DIR="FIXME"
 DATA_DIR=${STORAGE_DIR}/data/zinc_csv_small
 CONFIG_DIR=${STORAGE_DIR}/config
 CHECKPOINT_DIR=${STORAGE_DIR}/checkpoints
