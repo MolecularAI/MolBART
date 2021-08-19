@@ -1,27 +1,42 @@
 #!/bin/bash -l
-#SBATCH --nodes 4 
-#SBATCH --gpus-per-node 8 
+#SBATCH --nodes 2 
 #SBATCH --ntasks 32 
-#SBATCH --ntasks-per-node 8 
+#SBATCH --gpus-per-node 16 
+#SBATCH --ntasks-per-node 16 
 #SBATCH --time=8:00:00
 #SBATCH --partition batch
-#SBATCH --account ent_joc_model_mpnn_pyt
-#SBATCH --job-name megamolbart
+#SBATCH --account ent_aiapps_omics
 #SBATCH --output runlog_batch_dp.log
+#SBATCH --nv-meta ml-model.megamolbart_dp,dcgm_opt_out.yes
+#SBATCH --mem=0                 # all mem avail
+#SBATCH --mail-type=FAIL        # only send email on failure
+#SBATCH --overcommit            # Needed for pytorch
+#SBATCH --exclusive             # exclusive node access
+
+### sbatch --mail-user <userid> -J 1 --output train_1.log scripts/run_training_dp.sh
+### sbatch --mail-user <userid> -J 1 --output train_1.log --nodes 4 --gpus-per-node 8 --ntasks 32 --ntasks-per-node 8  scripts/run_training_dp.sh
 
 ##### Multi-node training on SLURM -- data parallel version
 # Tested in a variety of multi-node data parallel settings
 
+set -x
+### Load config from local env file
+source .env
+if [[ $? -ne 0 ]]; then
+    echo CONTAINER="nvcr.io#nvidian/clara-lifesciences/megamolbart:210623" >> .env
+    echo STORAGE_DIR=$(pwd) >> .env
+    source .env
+fi
+
 ### CONFIG ###
-CONTAINER="nvcr.io#nvidian/clara-lifesciences/megamolbart:latest"
+CONTAINER="nvcr.io#nvidian/clara-lifesciences/megamolbart:210813"
 STORAGE_DIR="/gpfs/fs1/projects/ent_joc/users/mgill/megatron"
 DATA_DIR=${STORAGE_DIR}/data/zinc_csv
 CONFIG_DIR=${STORAGE_DIR}/config
-CHECKPOINT_DIR=${STORAGE_DIR}/checkpoints
+CHECKPOINT_DIR=${STORAGE_DIR}/checkpoints/${SLURM_JOB_NAME}
 DEEPSPEED_CONFIG_DIR=${STORAGE_DIR}/config
-TENSORBOARD_DIR=${STORAGE_DIR}/tensorboard
-MEGAMOLBART_CODE_DIR=${STORAGE_DIR}/code/MolBART
-export MEGATRON_CONFIG_PATH=${CONFIG_DIR}/config_megatron_dp.sh
+TENSORBOARD_DIR=${STORAGE_DIR}/tensorboard/${SLURM_JOB_NAME}
+MEGAMOLBART_CODE_DIR=${STORAGE_DIR}
 
 DATA_MOUNT=/data
 CONFIG_MOUNT=/config
@@ -30,7 +45,13 @@ MEGATRON_CHECKPOINT_MOUNT=${CHECKPOINT_MOUNT}/megatron
 DEEPSPEED_CONFIG_MOUNT=/deepspeed_config
 TENSORBOARD_MOUNT=/tensorboard
 WORKDIR=/opt/MolBART
-CONFIG_DEEPSPEED_JSON_MOUNT=${DEEPSPEED_CONFIG_MOUNT}/config_deepspeed_dp.json
+CONFIG_DEEPSPEED_JSON_MOUNT=${DEEPSPEED_CONFIG_MOUNT}/config_deepspeed_dp_${SLURM_JOB_NAME}.json
+
+if [[ ! -e ${CONFIG_DEEPSPEED_JSON_MOUNT} ]]; then
+    CONFIG_DEEPSPEED_JSON_MOUNT=${DEEPSPEED_CONFIG_MOUNT}/config_deepspeed_dp.json
+fi
+echo "Deepspeed config file ${CONFIG_DEEPSPEED_JSON_MOUNT}..."
+cat ${CONFIG_DEEPSPEED_JSON_MOUNT}
 
 # Change for multinode config
 export MASTER_PORT=6000
@@ -62,7 +83,51 @@ PROFILE=false
 ### MEGATRON ###
 
 export NOW=`date '+%F_%H:%M:%S'`
-source $MEGATRON_CONFIG_PATH
+source ${CONFIG_DIR}/config_megatron_dp.sh
+
+POSITIONAL=()
+while [[ $# -gt 0 ]]; do
+    key="$1"
+
+    case $key in
+        -b|--batch_size)
+            export batch_size="$2"
+            shift
+            shift
+            ;;
+        -m|--mp_size)
+            mp_size="$2"
+            shift
+            shift
+            ;;
+        -l|--num_layers)
+            export num_layers="$2"
+            shift
+            shift
+            ;;
+        -a|--num_attention_heads)
+            export num_attention_heads="$2"
+            shift
+            shift
+            ;;
+        -s|--hidden_size)
+            export hidden_size="$2"
+            shift
+            shift
+            ;;
+        --lr)
+            export lr="$2"
+            shift
+            shift
+            ;;
+        -w)
+            export warmup="$2"
+            shift
+            shift
+            ;;
+    esac
+done
+
 megatron_options=" \
 --model-parallel-size ${mp_size} \
 --pipe-parallel-size ${pp_size} \
@@ -134,8 +199,11 @@ if [ "${PROFILE}" = "true" ]; then
 chkp_opt="${chkp_opt} --profile-backward"
 fi
 
-### RUN COMMAND ###
+# Create required directory
+mkdir -p ${CHECKPOINT_DIR}
+mkdir -p ${TENSORBOARD_DIR}
 
+### RUN COMMAND ###
 full_options="${megatron_options} ${deepspeed_options} ${chkp_opt}"
 
 MOUNTS="${DATA_DIR}:${DATA_MOUNT},${CONFIG_DIR}:${CONFIG_MOUNT},${CHECKPOINT_DIR}:${CHECKPOINT_MOUNT},${DEEPSPEED_CONFIG_DIR}:${DEEPSPEED_CONFIG_MOUNT},${TENSORBOARD_DIR}:${TENSORBOARD_MOUNT}"
@@ -146,16 +214,15 @@ if [ -d ${MEGAMOLBART_CODE_DIR} ]; then
     MOUNTS=${MOUNTS}",${MEGAMOLBART_CODE_DIR}:${WORKDIR}"
 fi
 
-
 srun \
---mpi=pmix \
---nodes ${SLURM_JOB_NUM_NODES} \
---ntasks ${SLURM_NTASKS} \
---ntasks-per-node ${SLURM_NTASKS_PER_NODE} \
---gpus-per-node ${SLURM_GPUS_PER_NODE} \
---container-image ${CONTAINER} \
---container-mounts ${MOUNTS} \
---container-workdir ${WORKDIR} \
-python megatron_molbart/train.py --deepspeed --deepspeed_mpi ${full_options}
+    --mpi=pmix \
+    --nodes ${SLURM_JOB_NUM_NODES} \
+    --ntasks ${SLURM_NTASKS} \
+    --ntasks-per-node ${SLURM_NTASKS_PER_NODE} \
+    --gpus-per-node ${SLURM_GPUS_PER_NODE} \
+    --container-image ${CONTAINER} \
+    --container-mounts ${MOUNTS} \
+    --container-workdir ${WORKDIR} \
+    python megatron_molbart/train.py --deepspeed --deepspeed_mpi ${full_options}
 
 set +x
