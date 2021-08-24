@@ -2,7 +2,7 @@
 #SBATCH --nodes 2 
 #SBATCH --ntasks 32
 #SBATCH --gpus-per-node 16  
-#SBATCH --ntasks-per-node 16s 
+#SBATCH --ntasks-per-node 16 
 #SBATCH --time=8:00:00
 #SBATCH --partition batch
 #SBATCH --account ent_joc_model_mpnn_pyt
