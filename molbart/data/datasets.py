@@ -8,6 +8,7 @@ from rdkit import Chem
 from typing import Optional
 from torch.utils.data import Dataset
 from concurrent.futures import ProcessPoolExecutor
+from pysmilesutils.augment import MolAugmenter
 
 
 class _AbsDataset(Dataset):
@@ -100,12 +101,102 @@ class ReactionDataset(_AbsDataset):
         return dataset
 
 
+class ReactionDatasetUpdated(_AbsDataset):
+    def __init__(self, reactants, products, items=None, transform=None, aug_prob=0.0):
+        super(ReactionDatasetUpdated, self).__init__()
+
+        if len(reactants) != len(products):
+            raise ValueError(f"There must be an equal number of reactants and products")
+
+        self.reactants = reactants
+        self.products = products
+        self.items = items
+        self.transform = transform
+        self.aug_prob = aug_prob
+        self.aug = MolAugmenter() 
+
+    def __len__(self):
+        return len(self.reactants)
+
+    def __getitem__(self, item):
+        reactant = self.reactants[item]
+        product = self.products[item]
+        output = (reactant, product, self.items[item]) if self.items is not None else (reactant, product)
+        output = self.transform(*output) if self.transform is not None else output
+        return output
+
+    def split_idxs(self, val_idxs, test_idxs):
+        """ Splits dataset into train, val and test
+
+        Note: Assumes all remaining indices outside of val_idxs and test_idxs are for training data
+        The datasets are returned as ReactionDataset objects, if these should be a subclass 
+        the from_reaction_pairs function should be overidden
+
+        Args:
+            val_idxs (List[int]): Indices for validation data
+            test_idxs (List[int]): Indices for test data
+
+        Returns:
+            (ReactionDataset, ReactionDataset, ReactionDataset): Train, val and test datasets
+        """
+
+        # Use aug prob of 0.0 for val and test datasets
+        val_reacts = [self.reactants[idx] for idx in val_idxs]
+        val_prods = [self.products[idx] for idx in val_idxs]
+        val_extra = [self.items[idx] for idx in val_idxs] if self.items is not None else None
+        val_dataset = ReactionDataset(val_reacts, val_prods, val_extra, self.transform, 0.0)
+
+        test_reacts = [self.reactants[idx] for idx in test_idxs]
+        test_prods = [self.products[idx] for idx in test_idxs]
+        test_extra = [self.items[idx] for idx in test_idxs] if self.items is not None else None
+        test_dataset = ReactionDataset(test_reacts, test_prods, test_extra, self.transform, 0.0)
+
+        train_idxs = set(range(len(self))) - set(val_idxs).union(set(test_idxs))
+        train_reacts = [self.reactants[idx] for idx in train_idxs]
+        train_prods = [self.products[idx] for idx in train_idxs]
+        train_extra = [self.items[idx] for idx in train_idxs] if self.items is not None else None
+        train_dataset = ReactionDataset(train_reacts, train_prods, train_extra, self.transform, self.aug_prob)
+
+        return train_dataset, val_dataset, test_dataset
+
+    def _save_idxs(self, df):
+        train_idxs = df.index[df["set"] == "train"]
+        val_idxs = df.index[df["set"] == "valid"].tolist()
+        test_idxs = df.index[df["set"] == "test"].tolist()
+
+        if len(set(val_idxs).intersection(set(test_idxs))) > 0:
+            raise ValueError(f"Val idxs and test idxs overlap")
+        if len(set(train_idxs).intersection(set(test_idxs))) > 0:
+            raise ValueError(f"Train idxs and test idxs overlap")
+        if len(set(train_idxs).intersection(set(val_idxs))) > 0:
+            raise ValueError(f"Train idxs and val idxs overlap")
+
+        return train_idxs, val_idxs, test_idxs
+
+    def _augment_to_smiles(self, mol, other_mol=None):
+        aug = random.random() < self.aug_prob
+        mol_aug = self.aug([mol])[0] if aug else mol
+        mol_str = Chem.MolToSmiles(mol_aug, canonical=not aug)
+        if other_mol is not None:
+            other_mol_aug = self.aug([other_mol])[0] if aug else other_mol
+            other_mol_str = Chem.MolToSmiles(other_mol_aug, canonical=not aug)
+            return mol_str, other_mol_str
+
+        return mol_str
+
+
 class Uspto50(ReactionDataset):
-    def __init__(self, data_path):
+    def __init__(self, data_path, forward=True):
         path = Path(data_path)
         df = pd.read_pickle(path)
-        reactants = df["reactant_ROMol"].tolist()
-        products = df["products_ROMol"].tolist()
+
+        # Reverse products / reactants for backwards prediction:
+        if forward:
+            reactants = df["reactants_mol"].tolist() # df["reactant_ROMol"].tolist()
+            products = df["products_mol"].tolist() # df["products_ROMol"].tolist()
+        else:
+            reactants = df["products_mol"].tolist() # df["reactant_ROMol"].tolist()
+            products = df["reactants_mol"].tolist() # df["products_ROMol"].tolist()
         
         super().__init__(reactants, products)
 
@@ -126,13 +217,21 @@ class Uspto50(ReactionDataset):
 
 
 class UsptoMit(ReactionDataset):
-    def __init__(self, data_path):
+    def __init__(self, data_path, forward=True):
         path = Path(data_path)
         df = pd.read_pickle(path)
-        reactants = df["reactants_mol"].tolist()
-        products = df["products_mol"].tolist()
-        reactant_lengths = df["reactant_lengths"].tolist()
-        product_lengths = df["product_lengths"].tolist()
+
+        # Reverse products / reactants for backwards prediction:
+        if forward:
+            reactants = df["reactants_mol"].tolist()
+            products = df["products_mol"].tolist()
+            reactant_lengths = df["reactant_lengths"].tolist()
+            product_lengths = df["product_lengths"].tolist()
+        else:
+            reactants = df["products_mol"].tolist()
+            products = df["reactants_mol"].tolist()
+            reactant_lengths = df["product_lengths"].tolist()
+            product_lengths = df["reactant_lengths"].tolist()
 
         super().__init__(reactants, products, seq_lengths=product_lengths)
 
@@ -151,21 +250,31 @@ class UsptoMit(ReactionDataset):
 
         return train_idxs, val_idxs, test_idxs
 
-
-class MolOptDataset(ReactionDataset):
+class MolPropDataset(ReactionDataset):
+    """
+    From Spyridion Dimitriadis's PhD work:
+    
+    code adapted from Irwin Ross
+    
+    for the Encoder Decoder architecture
+    with target of the model of the format: '<Lipo>|0.789'
+    Args: 
+        data_path (str): the path of a csv file, 
+            which must contain the columns [SMILES, target3, SET], where target3=pXC50_digits
+    """
     def __init__(self, data_path):
         path = Path(data_path)
         df = pd.read_csv(path)
-        data_in = df["Input"].tolist()
-        data_out = df["Output"].tolist()
-
+        data_in = df["SMILES"].tolist()
+        data_out = df["target3"].tolist()
+        # above say if it is pXC50 or not to have different data_out
         super().__init__(data_in, data_out)
 
         self.train_idxs, self.val_idxs, self.test_idxs = self._save_idxs(df)
 
     def _save_idxs(self, df):
-        val_idxs = df.index[df["Set"] == "validation"].tolist()
-        test_idxs = df.index[df["Set"] == "test"].tolist()
+        val_idxs = df.index[df["SET"] == "valid"].tolist()
+        test_idxs = df.index[df["SET"] == "test"].tolist()
 
         idxs_intersect = set(val_idxs).intersection(set(test_idxs))
         if len(idxs_intersect) > 0:
@@ -175,6 +284,32 @@ class MolOptDataset(ReactionDataset):
         train_idxs = idxs - set(val_idxs).union(set(test_idxs))
 
         return train_idxs, val_idxs, test_idxs
+
+
+class MolOpt(ReactionDatasetUpdated):
+    def __init__(self, data_path, aug_prob):
+        path = Path(data_path)
+        df = pd.read_pickle(path)
+        prop_tokens = df["property_tokens"].tolist()
+        input_smiles = df["input_mols"].tolist()
+        output_smiles = df["output_mols"].tolist()
+
+        super().__init__(
+            input_smiles,
+            output_smiles,
+            items=prop_tokens,
+            transform=self._prepare_strings,
+            aug_prob=aug_prob
+        )
+
+        self.aug_prob = aug_prob
+        self.train_idxs, self.val_idxs, self.test_idxs = self._save_idxs(df)
+
+    def _prepare_strings(self, input_smi, output_smi, prop_tokens):
+        input_str = self._augment_to_smiles(input_smi)
+        input_str = f"{prop_tokens}{input_str}"
+        output_str = self._augment_to_smiles(output_smi)
+        return input_str, output_str
 
 
 class MoleculeDataset(_AbsDataset):
