@@ -1,0 +1,9 @@
+{
+    "forward_reaction_prediction": true,
+    
+    "reaction_dataset" : "/test_data/uspto_50.pickle",
+    "optimization_dataset" : "/test_data/mol_opt.pickle",
+    "property_dataset" : "/test_data/three_props_correct_split.csv",
+    
+    "pretrained_checkpoint_dir" : "megatron_molbart_checkpoint"     
+}
