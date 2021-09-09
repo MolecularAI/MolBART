@@ -2,6 +2,7 @@ from molbart.tokeniser import MolEncTokeniser
 from molbart.util import DEFAULT_CHEM_TOKEN_START
 from molbart.util import REGEX
 from molbart.util import DEFAULT_VOCAB_PATH
+from molbart.data.datasets import MolOpt
 from megatron import print_rank_0
 from megatron.initialize import initialize_megatron
 from megatron.model import get_params_for_weight_decay_optimization
@@ -17,7 +18,7 @@ from torch.optim import AdamW
 from megatron_bart import MegatronBART
 from molbart.decoder import DecodeSampler
 import deepspeed
-from csv_data import MoleculeDataLoader
+from csv_data import MolOptLoader
 from megatron import get_args
 import numpy as np
 import pickle
@@ -28,6 +29,7 @@ from deepspeed.utils import RepeatingLoader
 import os
 import torch
 from save_ds_as_torch import save_deepspeed
+import json
 
 tokenizer = MolEncTokeniser.from_vocab_file(DEFAULT_VOCAB_PATH, REGEX,
         DEFAULT_CHEM_TOKEN_START)
@@ -364,20 +366,25 @@ def train(
     return iteration
 
 
-def run_training(ckpt_dir='megatron_molbart_checkpoint'):
+def run_training():
     initialize_megatron()
     args = get_args()
-    print_rank_0('Loading ChEMBL dataset ...')
+    print_rank_0('Loading property optimization dataset ...')
     path = os.path.dirname(os.path.realpath(__file__))
-    loader = MoleculeDataLoader(path + '/test_data/chembl_subset.csv',
-                                batch_size=256, num_workers=32)
+
+    with open('extra_configs.json', 'r') as f:
+        extra_configs = json.load(f)
+
+    molopt_ds = MolOpt(path + extra_configs['optimization_dataset'], 0)
+    loader = MolOptLoader(molopt_ds, batch_size=256, num_workers=32)
+
     (train_dataloader, val_dataloader) = loader.get_data()
     print_rank_0('Setting up model ...')
     (model, optimizer, lr_scheduler) = setup_model_and_optimizer(args)
-
-    if ckpt_dir is not None:
-        model.load_checkpoint(ckpt_dir)
-
+    if os.path.isdir(args.save):
+        model.load_checkpoint(args.save)
+    elif extra_configs['pretrained_checkpoint_dir'] is not None:
+        model.load_checkpoint(extra_configs['reaction_dataset'])
     print_rank_0('Starting training ...')
     train_dataloader = RepeatingLoader(train_dataloader)
     val_dataloader = RepeatingLoader(val_dataloader)
@@ -403,4 +410,4 @@ def load_model():
 
 
 if __name__ == '__main__':
-    run_training(ckpt_dir=None)
+    run_training()

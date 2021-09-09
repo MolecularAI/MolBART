@@ -441,6 +441,7 @@ class MegatronBART(MegatronModule):
         d_feedforward,
         max_seq_len,
         dropout=0.0,
+        encoder_only=False,
         ):
 
         super().__init__()
@@ -529,6 +530,35 @@ class MegatronBART(MegatronModule):
                   'token_output': token_output}
 
         return output
+
+    def forward_encode(self, x):
+        """ Apply SMILES strings to model
+
+        The dictionary returned will be passed to other functions, so its contents are fairly flexible,
+        except that it must contain the key "token_output" which is the output of the model 
+        (possibly after any fully connected layers) for each token.
+
+        Arg:
+            x (dict {
+                "encoder_input": tensor of token_ids of shape (src_len, batch_size),
+                "encoder_pad_mask": bool tensor of padded elems of shape (src_len, batch_size),
+                "decoder_input": tensor of decoder token_ids of shape (tgt_len, batch_size)
+                "decoder_pad_mask": bool tensor of decoder padding mask of shape (tgt_len, batch_size)
+            }):
+
+        Returns:
+            Output from model (dict containing key "token_output" and "model_output")
+        """
+
+        encoder_input = x['encoder_input']
+        encoder_pad_mask = x['encoder_pad_mask'].transpose(0, 1)
+
+        encoder_embs = self._construct_input(encoder_input)
+
+        memory = self.encoder(encoder_embs,
+                              src_key_padding_mask=encoder_pad_mask)
+
+        return memory
 
     def encode(self, batch):
         """ Construct the memory embedding for an encoder input
@@ -692,7 +722,7 @@ class MegatronBART(MegatronModule):
         enc_mask = batch_input['encoder_pad_mask']
 
         # Freezing the weights reduces the amount of memory leakage in the transformer
-        model.eval()
+        self.eval()
 
         with torch.no_grad():
 
@@ -713,7 +743,7 @@ class MegatronBART(MegatronModule):
                         self.num_beams)
 
         # Must remember to unfreeze!
-        model.train()
+        self.train()
 
         return (mol_strs, log_lhs)
 
@@ -789,3 +819,159 @@ class MegatronBART(MegatronModule):
             if p.dim() > 1:
                 method(p)
 
+class FineTuneMegaMolBART(MegatronModule):
+
+    def __init__(
+        self,
+        megatronbart,
+        d_feedforward,
+        d_model,
+        dropout=0.0,
+        ):
+
+        super().__init__()
+
+        megatronbart.decoder = torch.nn.Identity()
+        megatronbart.token_fc = torch.nn.Identity()
+        megatronbart.loss_fn = torch.nn.Identity()
+        megatronbart.log_softmax = torch.nn.Identity()
+
+        self.megatronbart = megatronbart
+        self.d_feedforward = d_feedforward
+        self.d_model = d_model
+        self.dropout = dropout
+
+        # Regression part
+        self.drpmem = nn.Dropout(self.dropout)
+        self.ln = nn.LayerNorm(self.d_model) 
+        self.hidden_fc = nn.Linear(self.d_model, self.d_feedforward)
+        self.drp = nn.Dropout(self.dropout)
+        self.predict_fc = nn.Linear(self.d_feedforward, 1)
+        self.loss_fn = nn.MSELoss()
+
+    def forward(self, x):
+        """ Apply SMILES strings to model
+
+        The dictionary returned will be passed to other functions, so its contents are fairly flexible,
+        except that it must contain the key "token_output" which is the output of the model 
+        (possibly after any fully connected layers) for each token.
+
+        Arg:
+            x (dict {
+                "masked_tokens": tensor of token_ids of shape (seq_len, batch_size),
+                "pad_masks": bool tensor of padded elems of shape (seq_len, batch_size),
+                "sentence_masks" (optional): long tensor (0 or 1) of shape (seq_len, batch_size)
+            }):
+
+        Returns:
+            Output from model (dict containing key "token_output")
+        """
+
+        memory = self.megatronbart.module.forward_encode(x)
+        memory = memory[1,:,:] # in the 2nd element is the gene_symbol i.e. 1st in python 
+                                         # eg '^','<OPRD1>','O','=','C','1','N',...
+        
+        ## ADD A DROPOUT and try
+        x = self.drpmem(memory)
+        x = self.ln(x)
+        x = self.hidden_fc(x)
+        x = F.relu(x)
+        x = self.drp(x)
+        token_output = self.predict_fc(x)
+
+        output = {'model_output': None,
+                  'token_output': token_output}
+
+        return output
+
+    def _calc_loss(self, batch_input, model_output):
+
+        tokens = batch_input['target']
+        # nomenclature here is a bit inappropriate, but means minimal changes from seq-to-seq pipeline:
+        token_output = model_output['token_output']
+
+        return self.loss_fn(tokens, token_output)
+
+    def validation_step(self, batch, batch_idx):
+
+        with torch.no_grad():
+            model_output = self.forward(batch)
+
+        return self._calc_loss(batch, model_output)
+
+
+
+class MolOptMegaMolBART(MegatronModule):
+
+    def __init__(
+        self,
+        megatronbart,
+        d_feedforward,
+        d_model,
+        pad_token_idx,
+        dropout=0.0,
+        ):
+
+        super().__init__()
+
+        self.megatronbart = megatronbart
+        self.d_feedforward = d_feedforward
+        self.d_model = d_model
+        self.dropout = dropout
+
+        # Regression part
+        self.drpmem = nn.Dropout(self.dropout)
+        self.ln = nn.LayerNorm(self.d_model) 
+        self.hidden_fc = nn.Linear(self.d_model, self.d_feedforward)
+        self.drp = nn.Dropout(self.dropout)
+        self.predict_fc = nn.Linear(self.d_feedforward, 1)
+        self.loss_fn = nn.CrossEntropyLoss(reduction="none", ignore_index=pad_token_idx)
+        self.loss_fn2 = nn.MSELoss()
+
+    def forward(self, x):
+
+        output = self.megatronbart(x)
+
+        # for MSE loss
+        prop_out = F.relu(output['model_output'][0])
+        prop_out = self.drp(prop_out) 
+        
+        prop_out = self.fc(prop_out)
+        prop_out = self.lnm(prop_out)
+
+        prop_out = F.relu(prop_out)
+        prop_out = self.drp2(prop_out)
+        prop_out = self.fc2(prop_out)
+        
+        output['prop_output'] = prop_out
+        
+        return output
+
+    def _calc_loss(self, batch_input, model_output):
+
+        target = batch_input["target"]
+        target_mask = batch_input["target_pad_mask"]
+        target_float = batch_input['property_values']
+        token_output = model_output["token_output"] 
+        float_pred = model_output["prop_output"]
+               
+        # Cross-Entropy
+        seq_len, batch_size = tuple(target.size())
+        token_pred = token_output.reshape((seq_len * batch_size, -1)).float()
+        loss = self.loss_fn(token_pred, target.reshape(-1)).reshape((seq_len, batch_size))
+        num_tokens = (~target_mask).sum() 
+        loss = loss.sum() / num_tokens
+
+        # MSE
+        loss2 = self.loss_fn2(target_float, float_pred.squeeze())
+
+        loss += loss2
+        
+        return loss
+
+    def validation_step(self, batch, batch_idx):
+
+        with torch.no_grad():
+            model_output = self.forward(batch)
+
+        return self._calc_loss(batch, model_output)

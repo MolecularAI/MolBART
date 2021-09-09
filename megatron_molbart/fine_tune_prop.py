@@ -2,6 +2,7 @@ from molbart.tokeniser import MolEncTokeniser
 from molbart.util import DEFAULT_CHEM_TOKEN_START
 from molbart.util import REGEX
 from molbart.util import DEFAULT_VOCAB_PATH
+from molbart.data.datasets import MolPropDataset
 from megatron import print_rank_0
 from megatron.initialize import initialize_megatron
 from megatron.model import get_params_for_weight_decay_optimization
@@ -10,14 +11,12 @@ from megatron import mpu
 from megatron.utils import report_memory
 from megatron.utils import reduce_losses
 from megatron import get_timers
-from megatron.checkpointing import get_checkpoint_name
-from megatron.checkpointing import get_checkpoint_tracker_filename
 from apex.optimizers import FusedAdam as Adam
 from torch.optim import AdamW
-from megatron_bart import MegatronBART
+from megatron_bart import MegatronBART, FineTuneMegaMolBART
 from molbart.decoder import DecodeSampler
 import deepspeed
-from csv_data import MoleculeDataLoader
+from csv_data import MolPropLoader
 from megatron import get_args
 import numpy as np
 import pickle
@@ -26,8 +25,7 @@ from molbart.models.pre_train import BARTModel
 import random
 from deepspeed.utils import RepeatingLoader
 import os
-import torch
-from save_ds_as_torch import save_deepspeed
+import json
 
 tokenizer = MolEncTokeniser.from_vocab_file(DEFAULT_VOCAB_PATH, REGEX,
         DEFAULT_CHEM_TOKEN_START)
@@ -86,6 +84,7 @@ def build_model_default(args):
         dropout=0.1,
         )
     return model
+
 
 def build_model(args):
 
@@ -168,6 +167,28 @@ def setup_model_and_optimizer(args):
 
     return (model, optimizer, lr_scheduler)
 
+def setup_fine_tune_model(args, model):
+    """Setup model and optimizer."""
+
+    model = FineTuneMegaMolBART(model, 512, args.hidden_size, dropout=0.1)
+    optimizer = get_optimizer(model, args)
+    lr_scheduler = get_learning_rate_scheduler(optimizer, args)
+
+    print_rank_0('DeepSpeed is enabled.')
+
+    # (mpu if args.pipe_parallel_size == 0 else None)
+
+    (model, optimizer, _, lr_scheduler) = deepspeed.initialize(
+        model=model,
+        optimizer=optimizer,
+        args=args,
+        lr_scheduler=lr_scheduler,
+        mpu=(mpu if args.pipe_parallel_size == 0 else None),
+        dist_init_required=False,
+        )
+
+    return (model, optimizer, lr_scheduler)
+
 
 def get_batch(data_iterator):
     """Generate a batch"""
@@ -176,12 +197,9 @@ def get_batch(data_iterator):
     keys = [
         'encoder_input',
         'encoder_pad_mask',
-        'decoder_input',
-        'decoder_pad_mask',
         'target',
-        'target_pad_mask',
         ]
-    datatype = torch.int64
+    datatype = torch.float32
     data = next(data_iterator)
     data_b = mpu.broadcast_data(keys, data, datatype)
 
@@ -189,20 +207,14 @@ def get_batch(data_iterator):
 
     encoder_tokens = data_b['encoder_input'].long()
     encoder_pad_mask = data_b['encoder_pad_mask'].bool()
-    decoder_tokens = data_b['decoder_input'].long()
-    decoder_pad_mask = data_b['decoder_pad_mask'].bool()
-    target = data_b['target'].long()
-    target_pad_mask = data_b['target_pad_mask'].long()
+    target = data_b['target'].float()
 
     num_batches_processed += 1
 
     return {
         'encoder_input': encoder_tokens,
         'encoder_pad_mask': encoder_pad_mask,
-        'decoder_input': decoder_tokens,
-        'decoder_pad_mask': decoder_pad_mask,
         'target': target,
-        'target_pad_mask': target_pad_mask,
         }
 
 
@@ -220,17 +232,14 @@ def forward_step(data_iterator, model):
     # Forward model.
 
     tokens = batch['target']
-    pad_mask = batch['target_pad_mask']
     outputs = model(batch)
     token_output = outputs['token_output']
     loss = model.module._calc_loss(batch, outputs)
-    acc = model.module._calc_char_acc(batch, outputs)
 
     # Reduce loss for logging.
 
     reduced_loss = reduce_losses([loss])
-    return (loss, {'mask loss': reduced_loss[0], 'acc': acc})
-
+    return (loss, {'mask loss': reduced_loss[0]})
 
 def backward_step(optimizer, model, loss):
     """Backward step."""
@@ -259,12 +268,8 @@ def eval_step(data_iterator, model):
     # Forward model.
 
     val_ouputs = model.module.validation_step(batch)
-    invalid_smiles = val_ouputs['val_invalid_smiles']
-
-    # Reduce loss for logging.
-
-    reduced_invalid_smiles = reduce_losses([invalid_smiles])
-    return {'val_invalid_smiles': reduced_invalid_smiles[0]}
+    
+    print('Val loss: ' + str(val_ouputs['loss'].item()))
 
 
 def train_step(
@@ -318,6 +323,7 @@ def save_ds_checkpoint(iteration, model, args):
 
     model.save_checkpoint(args.save, client_state=sd)
 
+
 def train(
     forward_step_func,
     model,
@@ -351,8 +357,7 @@ def train(
         iteration += 1
         print_rank_0('Iteration: ' + str(iteration) + '/'
                      + str(args.train_iters) + ', Loss: '
-                     + str(loss['mask loss'].item()) + ', Acc: '
-                     + str(loss['acc']) + ', Num batches: '
+                     + str(loss['mask loss'].item()) + ', Num batches: '
                      + str(num_batches_processed) + '/'
                      + str(len(trainloader.loader)) + ', Epoch: '
                      + str(epochs))
@@ -364,20 +369,28 @@ def train(
     return iteration
 
 
-def run_training(ckpt_dir='megatron_molbart_checkpoint'):
+def run_training():
     initialize_megatron()
     args = get_args()
-    print_rank_0('Loading ChEMBL dataset ...')
+    use_pxc50 = False
+
+    with open('extra_configs.json', 'r') as f:
+        extra_configs = json.load(f)
+
     path = os.path.dirname(os.path.realpath(__file__))
-    loader = MoleculeDataLoader(path + '/test_data/chembl_subset.csv',
-                                batch_size=256, num_workers=32)
+    print_rank_0('Loading property prediction dataset...')
+    molprop_ds = MolPropDataset(path + extra_configs['property_dataset'])
+    loader = MolPropLoader(molprop_ds, batch_size=256, num_workers=32)
+    
     (train_dataloader, val_dataloader) = loader.get_data()
     print_rank_0('Setting up model ...')
     (model, optimizer, lr_scheduler) = setup_model_and_optimizer(args)
-
-    if ckpt_dir is not None:
-        model.load_checkpoint(ckpt_dir)
-
+    if not os.path.isdir(args.save):
+        if extra_configs['pretrained_checkpoint_dir'] is not None:
+            model.load_checkpoint(extra_configs['pretrained_checkpoint_dir'])
+    (model, optimizer, lr_scheduler) = setup_fine_tune_model(args, model)
+    if os.path.isdir(args.save):
+        model.load_checkpoint(args.save)
     print_rank_0('Starting training ...')
     train_dataloader = RepeatingLoader(train_dataloader)
     val_dataloader = RepeatingLoader(val_dataloader)
@@ -403,4 +416,4 @@ def load_model():
 
 
 if __name__ == '__main__':
-    run_training(ckpt_dir=None)
+    run_training()

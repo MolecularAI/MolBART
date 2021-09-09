@@ -1,5 +1,5 @@
 {
-  "train_batch_size": 1024,
+  "train_batch_size": 512,
   "train_micro_batch_size_per_gpu": 256,
   "gradient_accumulation_steps": 1,
   "steps_per_print": 1,
@@ -33,4 +33,3 @@
   "wall_clock_breakdown": true,
   "zero_allow_untested_optimizer": true
 }
-

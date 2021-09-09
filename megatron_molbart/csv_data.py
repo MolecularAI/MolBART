@@ -1,6 +1,6 @@
 import torch
 from torch.utils.data import Dataset
-from pysmilesutils.augment import MolRandomizer, SMILESRandomizer
+from pysmilesutils.augment import MolAugmenter, SMILESAugmenter
 from pysmilesutils.datautils import BucketBatchSampler
 from molbart.tokeniser import MolEncTokeniser
 from molbart.util import DEFAULT_CHEM_TOKEN_START
@@ -14,6 +14,7 @@ from molbart.data.util import TokenSampler
 from megatron.data.samplers import DistributedBatchSampler
 from megatron import mpu
 import torch
+from rdkit import Chem # ADDED FOR FINE-TUNING
 
 tokenizer = MolEncTokeniser.from_vocab_file(DEFAULT_VOCAB_PATH, REGEX,
         DEFAULT_CHEM_TOKEN_START)
@@ -40,11 +41,12 @@ def check_seq_len(tokens, mask):
     return (tokens, mask)
 
 
-def collate_fn(batch):
+def collate_fn(batch, forward=True):
     """ Used by DataLoader to concatenate/collate inputs."""
 
     encoder_smiles = [x['encoder_smiles'][0] for x in batch]
     decoder_smiles = [x['decoder_smiles'][0] for x in batch]
+
     enc_token_output = tokenizer.tokenise(encoder_smiles, mask=True,
             pad=True)
     dec_token_output = tokenizer.tokenise(decoder_smiles, pad=True)
@@ -91,7 +93,7 @@ class MoleculeDataset(Dataset):
 
         self.mols = df['canonical_smiles'].tolist()
         self.lengths = df['lengths'].tolist()
-        self.aug = SMILESRandomizer()
+        self.aug = SMILESAugmenter()
         val_idxs = df.index[df['set'] == 'val'].tolist()
         test_idxs = df.index[df['set'] == 'test'].tolist()
         idxs = set(range(len(df.index)))
@@ -130,6 +132,7 @@ class MoleculeDataLoader(object):
         batch_size=32,
         num_buckets=20,
         num_workers=32,
+        forward=True,
         ):
 
         self.df = pandas.read_csv(file_path)
@@ -157,3 +160,222 @@ class MoleculeDataLoader(object):
     def get_data(self):
         return (self.train_loader, self.val_loader)
 
+"""
+The following fuctions & classes have been added for fine-tuning.
+They could be tidied up but they do the job. -RB
+"""
+
+def collate_fn_input_only(batch):
+    """ Adapted for classification tasks, where input=SMILES, output=Float. """
+
+    encoder_smiles = [x['encoder_smiles'][0] for x in batch]
+    enc_token_output = tokenizer.tokenise(encoder_smiles, mask=True,
+            pad=True)
+    target = torch.tensor([x['target'] for x in batch]).type(torch.float32)
+
+    enc_mask = enc_token_output['masked_pad_masks']
+    enc_tokens = enc_token_output['masked_tokens']
+
+    (enc_tokens, enc_mask) = check_seq_len(enc_tokens, enc_mask)
+
+    enc_token_ids = tokenizer.convert_tokens_to_ids(enc_tokens)
+    enc_token_ids = torch.tensor(enc_token_ids).transpose(0, 1).type(torch.float32)
+    enc_pad_mask = torch.tensor(enc_mask,
+                                dtype=torch.int64).transpose(0, 1).type(torch.float32)
+
+    collate_output = {
+        'encoder_input': enc_token_ids,
+        'encoder_pad_mask': enc_pad_mask,
+        'target': target
+        }
+
+    return collate_output
+
+
+class UsptoLoader(object):
+
+    def __init__(
+        self,
+        uspto50_ds,
+        batch_size=32,
+        num_buckets=20,
+        num_workers=32,
+        ):
+
+        train_dataset = Uspto_splitter(uspto50_ds, split='train')
+        val_dataset = Uspto_splitter(uspto50_ds, split='val')
+        self.tokenizer = \
+            MolEncTokeniser.from_vocab_file(DEFAULT_VOCAB_PATH, REGEX,
+                DEFAULT_CHEM_TOKEN_START)
+
+        world_size = \
+            torch.distributed.get_world_size(group=mpu.get_data_parallel_group())
+        rank = \
+            torch.distributed.get_rank(group=mpu.get_data_parallel_group())
+        sampler = torch.utils.data.SequentialSampler(train_dataset)
+        batch_sampler = DistributedBatchSampler(sampler, batch_size,
+                True, rank, world_size)
+
+        self.train_loader = torch.utils.data.DataLoader(train_dataset,
+                batch_sampler=batch_sampler, num_workers=num_workers,
+                pin_memory=True, collate_fn=collate_fn)
+        self.val_loader = torch.utils.data.DataLoader(val_dataset,
+                num_workers=num_workers, pin_memory=True,
+                collate_fn=collate_fn)
+
+    def get_data(self):
+
+        return (self.train_loader, self.val_loader)
+
+
+class Uspto_splitter(Dataset):
+
+    def __init__(self, uspto50_ds, split='train'):
+
+        self.uspto50_ds = uspto50_ds
+
+        if split == 'train':
+            self.indices = uspto50_ds.train_idxs
+        elif split == 'val':
+            self.indices = uspto50_ds.val_idxs
+        elif split == 'test':
+            self.indices = uspto50_ds.test_idxs
+
+        self.indices = list(self.indices)
+
+    def __getitem__(self, idx):
+
+        reactant_mol, product_mol = self.uspto50_ds.__getitem__(self.indices[idx])
+        reactant_mol = Chem.MolToSmiles(reactant_mol)
+        product_mol = Chem.MolToSmiles(product_mol)
+        output = {'encoder_smiles': reactant_mol, 'decoder_smiles': product_mol}
+
+        return output
+
+    def __len__(self):
+
+        return len(self.indices)
+
+
+class MolOptLoader():
+
+    def __init__(
+        self,
+        molopt_ds,
+        batch_size=32,
+        num_buckets=20,
+        num_workers=32,
+        ):
+        
+        train_dataset = MolOpt_splitter(molopt_ds, split='train')
+        val_dataset = MolOpt_splitter(molopt_ds, split='val')
+
+        world_size = \
+            torch.distributed.get_world_size(group=mpu.get_data_parallel_group())
+        rank = \
+            torch.distributed.get_rank(group=mpu.get_data_parallel_group())
+        sampler = torch.utils.data.SequentialSampler(train_dataset)
+        batch_sampler = DistributedBatchSampler(sampler, batch_size,
+                True, rank, world_size)
+
+        self.train_loader = torch.utils.data.DataLoader(train_dataset,
+                batch_sampler=batch_sampler, num_workers=num_workers,
+                pin_memory=True, collate_fn=collate_fn)
+        self.val_loader = torch.utils.data.DataLoader(val_dataset,
+                num_workers=num_workers, pin_memory=True,
+                collate_fn=collate_fn)
+
+    def get_data(self):
+
+        return (self.train_loader, self.val_loader)
+        
+
+class MolOpt_splitter(Dataset):
+
+    def __init__(self, molopt_ds, split='train'):
+
+        self.molopt_ds = molopt_ds
+
+        if split == 'train':
+            self.indices = molopt_ds.train_idxs
+        elif split == 'val':
+            self.indices = molopt_ds.val_idxs
+        elif split == 'test':
+            self.indices = molopt_ds.test_idxs
+
+        self.indices = list(self.indices)
+
+    def __getitem__(self, idx):
+
+        # Note - property values are not currently normalized, this may help training.
+        reactant_mol, product_mol = self.molopt_ds.__getitem__(self.indices[idx])
+        output = {'encoder_smiles': reactant_mol, 'decoder_smiles': product_mol}
+
+        return output
+
+    def __len__(self):
+
+        return len(self.indices)
+
+
+class MolPropLoader():
+
+    def __init__(
+        self,
+        molprop_ds,
+        batch_size=32,
+        num_buckets=20,
+        num_workers=32,
+        ):
+        
+        train_dataset = MolProp_splitter(molprop_ds, split='train')
+        val_dataset = MolProp_splitter(molprop_ds, split='val')
+
+        world_size = \
+            torch.distributed.get_world_size(group=mpu.get_data_parallel_group())
+        rank = \
+            torch.distributed.get_rank(group=mpu.get_data_parallel_group())
+        sampler = torch.utils.data.SequentialSampler(train_dataset)
+        batch_sampler = DistributedBatchSampler(sampler, batch_size,
+                True, rank, world_size)
+
+        self.train_loader = torch.utils.data.DataLoader(train_dataset,
+                batch_sampler=batch_sampler, num_workers=num_workers,
+                pin_memory=True, collate_fn=collate_fn_input_only)
+        self.val_loader = torch.utils.data.DataLoader(val_dataset,
+                num_workers=num_workers, pin_memory=True,
+                collate_fn=collate_fn_input_only)
+
+    def get_data(self):
+
+        return (self.train_loader, self.val_loader)
+        
+
+class MolProp_splitter(Dataset):
+
+    def __init__(self, molprop_ds, split='train'):
+
+        self.molprop_ds = molprop_ds
+
+        if split == 'train':
+            self.indices = molprop_ds.train_idxs
+        elif split == 'val':
+            self.indices = molprop_ds.val_idxs
+        elif split == 'test':
+            self.indices = molprop_ds.test_idxs
+
+        self.indices = list(self.indices)
+
+    def __getitem__(self, idx):
+
+        # Note - property values are not currently normalized, this may help training.
+        reactant_mol, target = self.molprop_ds.__getitem__(self.indices[idx])
+        target = float(target.split('|')[-1])
+        reactant_mol = str.replace(reactant_mol, '|', '')
+        output = {'encoder_smiles': reactant_mol, 'target': target}
+
+        return output
+
+    def __len__(self):
+
+        return len(self.indices)
