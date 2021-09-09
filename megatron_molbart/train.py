@@ -27,7 +27,6 @@ import random
 from deepspeed.utils import RepeatingLoader
 import os
 import torch
-from save_ds_as_torch import save_deepspeed
 
 tokenizer = MolEncTokeniser.from_vocab_file(DEFAULT_VOCAB_PATH, REGEX,
         DEFAULT_CHEM_TOKEN_START)
