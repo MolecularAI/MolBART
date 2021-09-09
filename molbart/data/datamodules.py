@@ -5,11 +5,11 @@ from rdkit import Chem
 from functools import partial
 from typing import List, Optional
 from torch.utils.data import DataLoader
-from pysmilesutils.augment import MolRandomizer
+from pysmilesutils.augment import MolAugmenter
 
 from molbart.tokeniser import MolEncTokeniser
 from molbart.data.util import TokenSampler
-from molbart.data.datasets import MoleculeDataset, ReactionDataset
+from molbart.data.datasets import MoleculeDataset, ReactionDataset, MolPropDataset
 
 
 class _AbsDataModule(pl.LightningDataModule):
@@ -180,7 +180,7 @@ class MoleculeDataModule(_AbsDataModule):
 
         if augment:
             print("Using molecule data module with augmentations.")
-            self.aug = MolRandomizer() 
+            self.aug = MolAugmenter() 
         else:
             print("No molecular augmentation.")
             self.aug = None
@@ -328,7 +328,7 @@ class FineTuneReactionDataModule(_AbsDataModule):
             print("Training on backward prediction task.")
 
         self.augment = augment
-        self.aug = MolRandomizer() if augment is not None else None
+        self.aug = MolAugmenter() if augment is not None else None
         self.forward_pred = forward_pred
 
     def _collate(self, batch, train=True):
@@ -483,3 +483,145 @@ class FineTuneMolOptDataModule(_AbsDataModule):
         # TODO When augmenting, ensure the canon form is used for evaluation
 
         pass
+
+        
+class MolPropDataModule(_AbsDataModule):
+    """
+    code adapted from Irwin Ross
+    
+    for the Encoder Decoder architecture
+    with target of the model of the format: '<Lipo>|0.789'
+    """
+    def __init__(
+        self,
+        dataset: MolPropDataset,
+        tokeniser: MolEncTokeniser,
+        batch_size: int,
+        max_seq_len: int,
+        train_token_batch_size: Optional[int] = None,
+        num_buckets: Optional[int] = None,
+        forward_pred: Optional[bool] = True,
+        val_idxs: Optional[List[int]] = None, 
+        test_idxs: Optional[List[int]] = None,
+        split_perc: Optional[float] = 0.2,
+        augment: Optional[bool] = True
+    ):
+        super().__init__(
+            dataset,
+            tokeniser,
+            batch_size,
+            max_seq_len,
+            train_token_batch_size,
+            num_buckets,
+            val_idxs, 
+            test_idxs,
+            split_perc
+        )
+
+        if augment:
+            print("Augmenting the SMILES strings.")
+            self.aug = SMILESRandomizer()  #SMILESRandomizer() : List[str]->List[str]
+        else:
+            print("No data augmentation.")
+            self.aug = None
+    
+        self.forward_pred = forward_pred
+
+
+    def _collate(self, batch, train=True):
+
+        token_output = self._prepare_tokens(batch, train)
+        SMILES_tokens = token_output["SMILES_tokens"]
+        SMILES_mask = token_output["SMILES_mask"]
+        props_tokens = token_output["props_tokens"]
+        props_mask = token_output["props_mask"]
+        props_vals = token_output["property_values"]
+
+        SMILES_token_ids = self.tokeniser.convert_tokens_to_ids(SMILES_tokens)
+        props_token_ids = self.tokeniser.convert_tokens_to_ids(props_tokens)
+
+        SMILES_token_ids = torch.tensor(SMILES_token_ids).transpose(0, 1)
+        SMILES_pad_mask = torch.tensor(SMILES_mask, dtype=torch.bool).transpose(0, 1)
+        props_token_ids = torch.tensor(props_token_ids).transpose(0, 1)
+        props_pad_mask = torch.tensor(props_mask, dtype=torch.bool).transpose(0, 1)
+
+        collate_output = {
+            #we are consistent with Ross code for the dictionary keys
+            "encoder_input": SMILES_token_ids,
+            "encoder_pad_mask": SMILES_pad_mask,
+            "decoder_input": props_token_ids[:-1, :],
+            "decoder_pad_mask": props_pad_mask[:-1, :],
+            "target": props_token_ids.clone()[1:, :],
+            "target_pad_mask": props_pad_mask.clone()[1:, :],
+            "property_values": props_vals
+        }
+
+        return collate_output
+
+    def _prepare_tokens(self, batch, train):
+        """ Prepare smiles strings for the model
+
+        The smiles strings are prepared for the forward prediction task, no masking
+
+        Args:
+            batch (list[tuple(SMILES_str, target_str)]): Batched input to the model
+
+        Output:
+            Dictionary output from tokeniser: {
+                "SMILES_tokens" (List[List[str]]): Molecule tokens from tokeniser,
+                "props_tokens" (List[List[str]]): Property value tokens from tokeniser,
+                "SMILES_masks" (List[List[int]]): 0 refers to not padded, 1 refers to padded,
+                "props_masks" (List[List[int]]): 0 refers to not padded, 1 refers to padded
+            }
+        """
+
+        inpSMILES, props = tuple(zip(*batch))
+        
+        # split at this point: prefix_token + SMILES 
+        # to augment only the SMILES string
+        def pref_split(smiles_string):
+            """
+            splits a string on '|' into a list with two elements, starting from the right
+            the prefix token must be in '<pref_token>'
+            eg. '<pXC50><OPRM1>|C[C:2](=[O:1])[OH:1]>>C[C:2](=[O:1])OCC'
+            """
+            part = smiles_string.rsplit('|',1) 
+            return [part[0] , part[1]]
+
+        if self.aug:
+            pref_SMILES = list(map(pref_split, inpSMILES)) #list[list[prefix_str, SMILES_str]]
+            prefs, SMILES_str = tuple(zip(*pref_SMILES)) #tuple(prefix_str), tuple(SMILES_str)
+            aug_SMILES_str = self.aug(SMILES_str) #list[aug_SMILES_str]
+            inpSMILES = tuple([x+y for x,y in zip(prefs, aug_SMILES_str)]) #tuple(inpSMILES)
+        else:
+            pref_SMILES = list(map(pref_split, inpSMILES)) #list[list[prefix_str, SMILES_str]]
+            prefs, SMILES_str = tuple(zip(*pref_SMILES)) #tuple(prefix_str), tuple(SMILES_str)
+            inpSMILES = tuple([x+y for x,y in zip(prefs, SMILES_str)]) #tuple(inpSMILES)
+            
+         
+        pref_target = list(map(pref_split, props)) #list[list[target_token_str, pXC50_str]]
+        props_target, props_value = tuple(zip(*pref_target)) #tuple(props_target_str), tuple(props_value_str)
+        props_value = list(map(float, props_value))  #list[pXC50_float]
+        props_value = torch.tensor(props_value)
+        
+        SMILES_output = self.tokeniser.tokenise(inpSMILES, pad=True)
+        props_output = self.tokeniser.tokenise(props_target, pad=True)
+
+        SMILES_tokens = SMILES_output["original_tokens"]
+        SMILES_mask = SMILES_output["masked_pad_masks"]
+        SMILES_tokens, SMILES_mask = self._check_seq_len(SMILES_tokens, SMILES_mask)
+
+        props_tokens = props_output["original_tokens"]
+        props_mask = props_output["masked_pad_masks"]
+        props_tokens, props_mask = self._check_seq_len(props_tokens, props_mask)
+
+        token_output = {
+            "SMILES_tokens": SMILES_tokens,
+            "SMILES_mask": SMILES_mask,
+            "props_tokens": props_tokens,
+            "props_mask": props_mask,
+            "input_smiles": inpSMILES,
+            "property_values": props_value
+        }
+
+        return token_output
