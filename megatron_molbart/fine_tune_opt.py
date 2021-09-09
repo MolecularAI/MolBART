@@ -28,7 +28,6 @@ import random
 from deepspeed.utils import RepeatingLoader
 import os
 import torch
-from save_ds_as_torch import save_deepspeed
 import json
 
 tokenizer = MolEncTokeniser.from_vocab_file(DEFAULT_VOCAB_PATH, REGEX,
