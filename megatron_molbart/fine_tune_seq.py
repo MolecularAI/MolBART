@@ -377,7 +377,7 @@ def run_training():
     uspto50_ds = Uspto50(path + extra_configs['reaction_dataset'], 
                                 forward=extra_configs['forward_reaction_prediction'])
     loader = UsptoLoader(uspto50_ds,
-                                batch_size=256, num_workers=32)
+                                batch_size=args.batch_size, num_workers=args.num_workers)
     
     (train_dataloader, val_dataloader) = loader.get_data()
     print_rank_0('Setting up model ...')
@@ -385,7 +385,8 @@ def run_training():
     if os.path.isdir(args.save):
         model.load_checkpoint(args.save)
     elif extra_configs['pretrained_checkpoint_dir'] is not None:
-        model.load_checkpoint(extra_configs['reaction_dataset'])
+        model.load_checkpoint(extra_configs['pretrained_checkpoint_dir'])
+
     print_rank_0('Starting training ...')
     train_dataloader = RepeatingLoader(train_dataloader)
     val_dataloader = RepeatingLoader(val_dataloader)

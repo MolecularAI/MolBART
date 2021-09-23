@@ -1,4 +1,4 @@
-GPUS_PER_NODE=4
+GPUS_PER_NODE=2
 # Change for multinode config
 MASTER_ADDR=localhost
 MASTER_PORT=6000
@@ -40,7 +40,7 @@ megatron_options=" \
         --num-attention-heads 8 \
         --seq-length 512 \
         --max-position-embeddings 512 \
-        --batch-size 320 \
+        --batch-size 512 \
         --gas 16 \
         --train-iters 320000 \
         --lr-decay-iters 320000 \
@@ -58,8 +58,10 @@ megatron_options=" \
         --save-interval 1000 \
         --eval-interval 100000 \
         --eval-iters 10 \
-        --save megatron_molbart_100m_checkpoint
+        --save checkpoint/megatron_molbart_100m_checkpoint
         --fp16
+
+        --num-workers 4
 "
 
 deepspeed_options=" \

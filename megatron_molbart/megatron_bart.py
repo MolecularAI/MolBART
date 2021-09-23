@@ -867,7 +867,7 @@ class FineTuneMegaMolBART(MegatronModule):
             Output from model (dict containing key "token_output")
         """
 
-        memory = self.megatronbart.module.forward_encode(x)
+        memory = self.megatronbart.forward_encode(x)
         memory = memory[1,:,:] # in the 2nd element is the gene_symbol i.e. 1st in python 
                                          # eg '^','<OPRD1>','O','=','C','1','N',...
         

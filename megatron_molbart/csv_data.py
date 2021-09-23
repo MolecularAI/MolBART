@@ -44,8 +44,8 @@ def check_seq_len(tokens, mask):
 def collate_fn(batch, forward=True):
     """ Used by DataLoader to concatenate/collate inputs."""
 
-    encoder_smiles = [x['encoder_smiles'][0] for x in batch]
-    decoder_smiles = [x['decoder_smiles'][0] for x in batch]
+    encoder_smiles = [x['encoder_smiles'] for x in batch]
+    decoder_smiles = [x['decoder_smiles'] for x in batch]
 
     enc_token_output = tokenizer.tokenise(encoder_smiles, mask=True,
             pad=True)
@@ -168,10 +168,10 @@ They could be tidied up but they do the job. -RB
 def collate_fn_input_only(batch):
     """ Adapted for classification tasks, where input=SMILES, output=Float. """
 
-    encoder_smiles = [x['encoder_smiles'][0] for x in batch]
+    encoder_smiles = [x['encoder_smiles'] for x in batch]
     enc_token_output = tokenizer.tokenise(encoder_smiles, mask=True,
             pad=True)
-    target = torch.tensor([x['target'] for x in batch]).type(torch.float32)
+    target = torch.tensor([x['target'] for x in batch]).type(torch.float16)
 
     enc_mask = enc_token_output['masked_pad_masks']
     enc_tokens = enc_token_output['masked_tokens']
@@ -179,9 +179,9 @@ def collate_fn_input_only(batch):
     (enc_tokens, enc_mask) = check_seq_len(enc_tokens, enc_mask)
 
     enc_token_ids = tokenizer.convert_tokens_to_ids(enc_tokens)
-    enc_token_ids = torch.tensor(enc_token_ids).transpose(0, 1).type(torch.float32)
+    enc_token_ids = torch.tensor(enc_token_ids).transpose(0, 1).type(torch.float16)
     enc_pad_mask = torch.tensor(enc_mask,
-                                dtype=torch.int64).transpose(0, 1).type(torch.float32)
+                                dtype=torch.int64).transpose(0, 1).type(torch.float16)
 
     collate_output = {
         'encoder_input': enc_token_ids,
