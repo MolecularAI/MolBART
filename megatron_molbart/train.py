@@ -369,13 +369,13 @@ def run_training(ckpt_dir='megatron_molbart_checkpoint'):
     print_rank_0('Loading ChEMBL dataset ...')
     path = os.path.dirname(os.path.realpath(__file__))
     loader = MoleculeDataLoader(path + '/test_data/chembl_subset.csv',
-                                batch_size=256, num_workers=32)
+                                batch_size=args.batch_size, num_workers=args.num_workers)
     (train_dataloader, val_dataloader) = loader.get_data()
     print_rank_0('Setting up model ...')
     (model, optimizer, lr_scheduler) = setup_model_and_optimizer(args)
 
-    if ckpt_dir is not None:
-        model.load_checkpoint(ckpt_dir)
+    if os.path.isdir(args.save):
+        model.load_checkpoint(args.save)
 
     print_rank_0('Starting training ...')
     train_dataloader = RepeatingLoader(train_dataloader)

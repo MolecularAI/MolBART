@@ -5,5 +5,5 @@
     "optimization_dataset" : "/test_data/mol_opt.pickle",
     "property_dataset" : "/test_data/three_props_correct_split.csv",
     
-    "pretrained_checkpoint_dir" : "megatron_molbart_100m_checkpoint"     
+    "pretrained_checkpoint_dir" : "checkpoint/megatron_molbart_100m_checkpoint"
 }

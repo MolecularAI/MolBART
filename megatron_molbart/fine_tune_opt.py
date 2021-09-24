@@ -375,15 +375,17 @@ def run_training():
         extra_configs = json.load(f)
 
     molopt_ds = MolOpt(path + extra_configs['optimization_dataset'], 0)
-    loader = MolOptLoader(molopt_ds, batch_size=256, num_workers=32)
+    loader = MolOptLoader(molopt_ds, batch_size=args.batch_size, num_workers=args.num_workers)
 
     (train_dataloader, val_dataloader) = loader.get_data()
     print_rank_0('Setting up model ...')
     (model, optimizer, lr_scheduler) = setup_model_and_optimizer(args)
+
     if os.path.isdir(args.save):
         model.load_checkpoint(args.save)
     elif extra_configs['pretrained_checkpoint_dir'] is not None:
-        model.load_checkpoint(extra_configs['reaction_dataset'])
+        model.load_checkpoint(extra_configs['pretrained_checkpoint_dir'])
+
     print_rank_0('Starting training ...')
     train_dataloader = RepeatingLoader(train_dataloader)
     val_dataloader = RepeatingLoader(val_dataloader)

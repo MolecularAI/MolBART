@@ -170,7 +170,7 @@ def setup_model_and_optimizer(args):
 def setup_fine_tune_model(args, model):
     """Setup model and optimizer."""
 
-    model = FineTuneMegaMolBART(model, 512, args.hidden_size, dropout=0.1)
+    model = FineTuneMegaMolBART(model.module, 512, args.hidden_size, dropout=0.1)
     optimizer = get_optimizer(model, args)
     lr_scheduler = get_learning_rate_scheduler(optimizer, args)
 
@@ -199,7 +199,7 @@ def get_batch(data_iterator):
         'encoder_pad_mask',
         'target',
         ]
-    datatype = torch.float32
+    datatype = torch.float16
     data = next(data_iterator)
     data_b = mpu.broadcast_data(keys, data, datatype)
 
@@ -207,7 +207,7 @@ def get_batch(data_iterator):
 
     encoder_tokens = data_b['encoder_input'].long()
     encoder_pad_mask = data_b['encoder_pad_mask'].bool()
-    target = data_b['target'].float()
+    target = data_b['target'].type(torch.float16)
 
     num_batches_processed += 1
 
@@ -380,7 +380,7 @@ def run_training():
     path = os.path.dirname(os.path.realpath(__file__))
     print_rank_0('Loading property prediction dataset...')
     molprop_ds = MolPropDataset(path + extra_configs['property_dataset'])
-    loader = MolPropLoader(molprop_ds, batch_size=256, num_workers=32)
+    loader = MolPropLoader(molprop_ds, batch_size=args.batch_size, num_workers=args.num_workers)
     
     (train_dataloader, val_dataloader) = loader.get_data()
     print_rank_0('Setting up model ...')

@@ -9,3 +9,10 @@ saved_models/
 notebooks/data/
 notebooks/.ipynb_checkpoints/
 notebooks/playground.ipynb
+.idea/
+checkpoint/
+slurm_job.sh
+slurm_job_output/
+temp/
+tensorboard/
+
