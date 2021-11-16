@@ -9,7 +9,10 @@ import torch.nn.functional as F
 import torch
 import math
 from functools import partial
+from tokenizer import load_tokenizer
+from util import DEFAULT_CHEM_TOKEN_START, DEFAULT_VOCAB_PATH, REGEX
 
+tokenizer = load_tokenizer(vocab_path=DEFAULT_VOCAB_PATH, chem_token_start=DEFAULT_CHEM_TOKEN_START, regex=REGEX)
 
 class MultiheadAttention(MegatronModule):
 
@@ -585,16 +588,23 @@ class MegatronBART(MegatronModule):
     def validation_step(self, batch, batch_idx=None):
         self.eval()
 
-        model_output = self.forward(batch)
-        target_smiles = batch['target_smiles']
+        with torch.no_grad():
+            model_output = self.forward(batch)
+            #target_smiles = batch['target_smiles']
+            token_ids = batch['target']
+            tokens = token_ids.transpose(0, 1).tolist()
+            tokens = tokenizer.convert_ids_to_tokens(tokens)
+            target_smiles = tokenizer.detokenize(tokens)
 
-        loss = self._calc_loss(batch, model_output)
-        token_acc = self._calc_char_acc(batch, model_output)
-        perplexity = self._calc_perplexity(batch, model_output)
-        (mol_strs, log_lhs) = self.sample_molecules(batch,
-                sampling_alg=self.val_sampling_alg)
-        metrics = self.sampler.calc_sampling_metrics(mol_strs,
-                target_smiles)
+            loss = self._calc_loss(batch, model_output)
+            token_acc = self._calc_char_acc(batch, model_output)
+            perplexity = self._calc_perplexity(batch, model_output)
+            (mol_strs, log_lhs) = self.sample_molecules(batch,
+                    sampling_alg=self.val_sampling_alg)
+            metrics = self.sampler.calc_sampling_metrics(mol_strs,
+                    target_smiles)
+
+        self.train()
 
         val_outputs = {
             'val_loss': loss.item(),
@@ -673,8 +683,8 @@ class MegatronBART(MegatronModule):
         (_, pred_ids) = torch.max(token_output.float(), dim=2)
         correct_ids = torch.eq(token_ids, pred_ids)
         correct_ids = correct_ids * target_mask
-        num_correct = correct_ids.sum().cpu().detach().item()
-        total = target_mask.sum().cpu().detach().item()
+        num_correct = correct_ids.sum()
+        total = target_mask.sum()
         accuracy = num_correct / total
         return accuracy
 

@@ -207,8 +207,9 @@ def forward_step(data_iterator, model):
     loss = model.module._calc_loss(batch, outputs)
     acc = model.module._calc_char_acc(batch, outputs)
     reduced_loss = reduce_losses([loss])
-    
-    return (loss, {'mask loss': reduced_loss[0], 'acc': acc})
+    reduced_acc = reduce_losses([acc])
+
+    return (loss, {'mask loss': reduced_loss[0], 'acc': reduced_acc[0]})
 
 
 def backward_step(optimizer, model, loss):
@@ -232,7 +233,7 @@ def eval_step(data_iterator, model):
     # Get the batch.
 
     timers('batch generator').start()
-    batch = next(data_iterator)
+    batch = get_batch(data_iterator)
     timers('batch generator').stop()
 
     # Forward model.
@@ -243,11 +244,8 @@ def eval_step(data_iterator, model):
     token_acc = val_outputs['val_token_acc']
     val_perplexity= val_outputs['val_perplexity']
     val_molecular_accuracy= val_outputs['val_molecular_accuracy']
-    # Reduce loss for logging.
 
-    reduced_invalid_smiles = reduce_losses([invalid_smiles])
-    
-    return {'val_invalid_smiles': reduced_invalid_smiles[0], 'val_molecular_accuracy':val_molecular_accuracy}
+    return val_outputs
 
 
 def train_step(
@@ -317,7 +315,7 @@ def train(
         print_rank_0('Iteration: ' + str(args.iteration) + '/'
                      + str(args.train_iters) + ', Loss: '
                      + str(loss['mask loss'].item()) + ', Acc: '
-                     + str(loss['acc']) + ', Num batches: '
+                     + str(loss['acc'].item()) + ', Num batches: '
                      + str(num_batches_processed) + '/'
                      + str(len(trainloader.loader)) + ', Epoch: '
                      + str(epochs))
@@ -337,6 +335,8 @@ def train(
         # Evaluation
         if args.iteration % args.eval_interval == 0:
             loss_dict_val= evaluate(forward_step_func, val_data_iterator, model)
+            # Todo: to get molecular accuracy, use eval_step which needs to be investigated
+            # val_outputs = eval_step(val_data_iterator, model)
             if torch.distributed.get_rank() == 0:
                 writer.add_scalar('validation mask loss',loss_dict_val['mask loss'], args.iteration)
                 writer.add_scalar('validation acc',loss_dict_val['acc'], args.iteration)
