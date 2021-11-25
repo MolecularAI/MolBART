@@ -43,8 +43,8 @@ def check_seq_len(tokens, mask, max_seq_len=DEFAULT_MAX_SEQ_LEN):
 def collate_fn(batch):
     """ Used by DataLoader to concatenate/collate inputs."""
 
-    encoder_smiles = [x['encoder_smiles'][0] for x in batch]
-    decoder_smiles = [x['decoder_smiles'][0] for x in batch]
+    encoder_smiles = [x['encoder_smiles'] for x in batch]
+    decoder_smiles = [x['decoder_smiles'] for x in batch]
     enc_token_output = default_tokenizer.tokenize(encoder_smiles, mask=True,
             pad=True)
     dec_token_output = default_tokenizer.tokenize(decoder_smiles, pad=True)
@@ -91,7 +91,7 @@ class MoleculeDataset(Dataset):
 
         if zinc:
             self.mols = df['smiles'].tolist()
-        else:     
+        else:
             self.mols = df['canonical_smiles'].tolist()
         
         self.aug = SMILESAugmenter()
@@ -118,7 +118,7 @@ class MoleculeDataset(Dataset):
             dec_smi = self.aug(mol)
         except:
             dec_smi = mol
-        output = {'encoder_smiles': enc_smi, 'decoder_smiles': dec_smi}
+        output = {'encoder_smiles': enc_smi[0], 'decoder_smiles': dec_smi[0]}
         return output
 
 class MoleculeDataLoader(object):
@@ -157,7 +157,12 @@ class MoleculeDataLoader(object):
         self.train_loader = torch.utils.data.DataLoader(train_dataset,
                 batch_sampler=batch_sampler, num_workers=num_workers,
                 pin_memory=True, collate_fn=collate_fn)
+
+        sampler = torch.utils.data.SequentialSampler(val_dataset)
+        batch_sampler = DistributedBatchSampler(sampler, batch_size,
+                True, rank, world_size)
         self.val_loader = torch.utils.data.DataLoader(val_dataset,
+                batch_sampler=batch_sampler,
                 num_workers=num_workers, pin_memory=True,
                 collate_fn=collate_fn)
 
@@ -171,9 +176,8 @@ class MoleculeDataLoader(object):
         world_size = max(mpu.get_data_parallel_world_size(),args.world_size)
         rank = max(mpu.get_data_parallel_rank(),args.rank)
         partition = int(m/world_size) + 1
-        partition = max(partition,10)
         idx = partition*rank % m
-        selected_names = names[idx:(idx+10)]
+        selected_names = names[idx:(idx+partition)]
         dfs = [pd.read_csv(path+ '/' + f) for f in selected_names]
 
         zinc_df = pd.concat(dfs, ignore_index=True, copy=False)

@@ -377,7 +377,9 @@ class DecodeSampler:
         invalid = [mol is None for mol in sampled_mols]
 
         canon_smiles = ["Unknown" if mol is None else Chem.MolToSmiles(mol) for mol in sampled_mols]
-        correct_smiles = [target_smiles[idx] == smi for idx, smi in enumerate(canon_smiles)]
+        target_mols = [Chem.MolFromSmiles(smi) for smi in target_smiles]
+        canon_target_smiles = [Chem.MolToSmiles(mol) for mol in target_mols]
+        correct_smiles = [canon_target_smiles[idx] == smi for idx, smi in enumerate(canon_smiles)]
 
         num_correct = sum(correct_smiles)
         total = len(correct_smiles)
@@ -385,6 +387,7 @@ class DecodeSampler:
         perc_invalid = num_invalid / total
         accuracy = num_correct / total
 
+        # Todo: need to move accuracy and perc_invalid to cuda for reducing later
         metrics = {
             "accuracy": accuracy,
             "invalid": perc_invalid
