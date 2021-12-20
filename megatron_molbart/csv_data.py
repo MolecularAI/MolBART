@@ -20,6 +20,21 @@ from tokenizer import load_tokenizer
 default_tokenizer = load_tokenizer(vocab_path=DEFAULT_VOCAB_PATH, chem_token_start=DEFAULT_CHEM_TOKEN_START, regex=REGEX)
 
 
+class SequentialSampler2(torch.utils.data.Sampler):
+    def __init__(self, data_source, start_idx):
+        super().__init__(data_source)
+        self.start_idx = start_idx
+        self.data_source = data_source
+    def __iter__(self):
+        if self.start_idx:
+            return iter(range(self.start_idx, len(self.data_source)))
+        else:
+            return iter(range(len(self.data_source)))
+
+    def __len__(self):
+        return len(self.data_source)
+
+
 def check_seq_len(tokens, mask, max_seq_len=DEFAULT_MAX_SEQ_LEN):
     """ Warn user and shorten sequence if the tokens are too long, otherwise return original
 
@@ -133,9 +148,10 @@ class MoleculeDataLoader(object):
         num_workers=32,
         vocab_path=DEFAULT_VOCAB_PATH, 
         chem_token_start=DEFAULT_CHEM_TOKEN_START, 
-        regex=REGEX
+        regex=REGEX,
+        start_id = None
         ):
-
+        #start_id = pd.read_csv('/home/hsirelkhatim/MolBART/megatron_molbart_100m_checkpoint/latest_checkpointed_iteration.txt',header=None)[0][0]
         path = Path(file_path)
         if path.is_dir():
             self.df = self._read_dir_df(file_path)
@@ -150,7 +166,7 @@ class MoleculeDataLoader(object):
             torch.distributed.get_world_size(group=mpu.get_data_parallel_group())
         rank = \
             torch.distributed.get_rank(group=mpu.get_data_parallel_group())
-        sampler = torch.utils.data.SequentialSampler(train_dataset)
+        sampler = SequentialSampler2(train_dataset,start_id)
         batch_sampler = DistributedBatchSampler(sampler, batch_size,
                 True, rank, world_size)
 
