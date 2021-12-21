@@ -126,14 +126,14 @@ class MoleculeDataset(Dataset):
             idx = idx.tolist()
         mol = self.mols[idx]
         try:
-            enc_smi = self.aug(mol)
+            enc_smi = self.aug(mol)[0]
         except:
             enc_smi = mol
         try:
-            dec_smi = self.aug(mol)
+            dec_smi = self.aug(mol)[0]
         except:
             dec_smi = mol
-        output = {'encoder_smiles': enc_smi[0], 'decoder_smiles': dec_smi[0]}
+        output = {'encoder_smiles': enc_smi, 'decoder_smiles': dec_smi}
         return output
 
 class MoleculeDataLoader(object):
