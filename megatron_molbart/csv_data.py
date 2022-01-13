@@ -187,14 +187,19 @@ class MoleculeDataLoader(object):
 
     def _read_dir_df(self, path):
         args = get_args()
-        names = os.listdir(path)
-        m = len(names)
-        world_size = max(mpu.get_data_parallel_world_size(),args.world_size)
-        rank = max(mpu.get_data_parallel_rank(),args.rank)
-        partition = int(m/world_size) + 1
-        idx = partition*rank % m
-        selected_names = names[idx:(idx+partition)]
-        dfs = [pd.read_csv(path+ '/' + f) for f in selected_names]
+        # names = os.listdir(path)
+        # m = len(names)
+        # world_size = args.world_size
+        # rank = args.rank
+        # partition = int(m/world_size) + 1
+        # idx = partition*rank % m
+        # selected_names = names[idx:(idx+partition)]
+        # dfs = [pd.read_csv(path+ '/' + f) for f in selected_names]
 
-        zinc_df = pd.concat(dfs, ignore_index=True, copy=False)
+        # zinc_df = pd.concat(dfs, ignore_index=True, copy=False)
+        print(args.rank)
+        if args.rank == 0:
+            names = os.listdir(path)
+            dfs = [pd.read_csv(path+ '/' + f) for f in names]
+            zinc_df = pd.concat(dfs, ignore_index=True, copy=False)
         return zinc_df

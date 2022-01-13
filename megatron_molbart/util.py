@@ -1,8 +1,8 @@
 # coding=utf-8
 
 # Paths
-DEFAULT_VOCAB_PATH = '/models/megamolbart/bart_vocab.txt'
-CHECKPOINTS_DIR = '/models/megamolbart/checkpoints'
+DEFAULT_VOCAB_PATH = '/home/hsirelkhatim/MolBART/bart_vocab.txt'
+CHECKPOINTS_DIR = '/home/hsirelkhatim/checkpoints'
 
 # Tokenization and vocabulary
 DEFAULT_MAX_SEQ_LEN = 512
