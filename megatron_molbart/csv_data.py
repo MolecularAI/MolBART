@@ -11,7 +11,7 @@ from rdkit import Chem
 
 from pysmilesutils.augment import SMILESAugmenter
 
-from megatron.data.samplers import DistributedBatchSampler
+#from megatron.data.samplers import DistributedBatchSampler
 from megatron import mpu, get_args
 
 from util import DEFAULT_CHEM_TOKEN_START, DEFAULT_VOCAB_PATH, DEFAULT_MAX_SEQ_LEN, REGEX
@@ -103,7 +103,6 @@ class MoleculeDataset(Dataset):
         Args:
             df (pandas.DataFrame): DataFrame object with RDKit molecules and lengths.
         """
-
         if zinc:
             self.mols = df['smiles'].tolist()
         else:
@@ -151,7 +150,6 @@ class MoleculeDataLoader(object):
         regex=REGEX,
         start_id = None
         ):
-        #start_id = pd.read_csv('/home/hsirelkhatim/MolBART/megatron_molbart_100m_checkpoint/latest_checkpointed_iteration.txt',header=None)[0][0]
         path = Path(file_path)
         if path.is_dir():
             self.df = self._read_dir_df(file_path)
@@ -160,6 +158,7 @@ class MoleculeDataLoader(object):
 
         train_dataset = MoleculeDataset(self.df, split='train', zinc=True)
         val_dataset = MoleculeDataset(self.df, split='val', zinc=True)
+        test_dataset = MoleculeDataset(self.df, split='test', zinc = True)
         self.tokenizer = load_tokenizer(vocab_path, chem_token_start, regex)
 
         world_size = \
@@ -167,23 +166,29 @@ class MoleculeDataLoader(object):
         rank = \
             torch.distributed.get_rank(group=mpu.get_data_parallel_group())
         sampler = SequentialSampler2(train_dataset,start_id)
-        batch_sampler = DistributedBatchSampler(sampler, batch_size,
-                True, rank, world_size)
+        batch_sampler = torch.utils.data.BatchSampler(sampler,batch_size, drop_last=True)#  DistributedBatchSampler(sampler, batch_size,
+               # True, rank, world_size)
 
         self.train_loader = torch.utils.data.DataLoader(train_dataset,
                 batch_sampler=batch_sampler, num_workers=num_workers,
                 pin_memory=True, collate_fn=collate_fn)
 
         sampler = torch.utils.data.SequentialSampler(val_dataset)
-        batch_sampler = DistributedBatchSampler(sampler, batch_size,
-                True, rank, world_size)
+        batch_sampler =torch.utils.data.BatchSampler(sampler,batch_size, drop_last=True)# DistributedBatchSampler(sampler, batch_size,
+                #True, rank, world_size)
         self.val_loader = torch.utils.data.DataLoader(val_dataset,
-                batch_sampler=batch_sampler,
+                batch_sampler=batch_sampler,#sampler,
                 num_workers=num_workers, pin_memory=True,
                 collate_fn=collate_fn)
-
+        sampler = torch.utils.data.SequentialSampler(test_dataset)
+        batch_sampler =torch.utils.data.BatchSampler(sampler,batch_size, drop_last=True)# DistributedBatchSampler(sampler, batch_size,
+                #True, rank, world_size)
+        self.test_loader = torch.utils.data.DataLoader(test_dataset,
+                batch_sampler=batch_sampler,#sampler,
+                num_workers=num_workers, pin_memory=True,
+                collate_fn=collate_fn)
     def get_data(self):
-        return (self.train_loader, self.val_loader)
+        return (self.train_loader, self.val_loader, self.test_loader)
 
     def _read_dir_df(self, path):
         args = get_args()
@@ -197,9 +202,7 @@ class MoleculeDataLoader(object):
         # dfs = [pd.read_csv(path+ '/' + f) for f in selected_names]
 
         # zinc_df = pd.concat(dfs, ignore_index=True, copy=False)
-        print(args.rank)
-        if args.rank == 0:
-            names = os.listdir(path)
-            dfs = [pd.read_csv(path+ '/' + f) for f in names]
-            zinc_df = pd.concat(dfs, ignore_index=True, copy=False)
+        # n (numer of samples in total zinc file) =  (1378010610, 4)
+        #dfs = [pd.read_csv(path+ '/' + f) for f in names]
+        zinc_df = pd.read_csv(os.path.dirname(path) + '/data_per_rank/{}.csv'.format(args.rank))#pd.concat(dfs, ignore_index=True, copy=False)
         return zinc_df

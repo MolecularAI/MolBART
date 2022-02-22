@@ -361,7 +361,7 @@ def run_training(ckpt_dir='megatron_molbart_checkpoint'):
     args.iteration = load_deepspeed_iteration(path)
     loader = MoleculeDataLoader(args.dataset_path,
                                 batch_size=args.batch_size, num_workers=32, start_id=args.iteration*args.batch_size)
-    (train_dataloader, val_dataloader) = loader.get_data()
+    (train_dataloader, val_dataloader, test_dataloader) = loader.get_data()
     
     print_rank_0('Setting up model ...')
     (model, optimizer, lr_scheduler) = setup_model_and_optimizer(args)

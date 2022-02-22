@@ -1,4 +1,4 @@
-GPUS_PER_NODE=1
+GPUS_PER_NODE=3
 # Change for multinode config
 MASTER_ADDR=localhost
 MASTER_PORT=6000
@@ -12,7 +12,7 @@ export DLWS_NUM_GPU_PER_WORKER=${GPUS_PER_NODE}
 script_path=$(realpath $0)
 script_dir=$(dirname $script_path)
 config_json="$script_dir/config/config_deepspeed.json"
-
+python megatron_molbart/split_zinc_files.py /raid/hsirelkhatim/zinc/x000.csv $WORLD_SIZE
 #ZeRO Configs
 stage=1
 reduce_scatter=true
@@ -49,7 +49,7 @@ megatron_options=" \
         --distributed-backend nccl \
         --lr 0.0001 \
         --lr-decay-style cosine \
-        --dataset_path /home/hsirelkhatim/zinc
+        --dataset_path /raid/hsirelkhatim/data_per_rank
         --min-lr 1.0e-5 \
         --weight-decay 0 \
         --clip-grad 1.0 \
